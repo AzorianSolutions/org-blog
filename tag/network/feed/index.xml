@@ -1,0 +1,450 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>network &#8211; Azorian Solutions</title>
+	<atom:link href="/tag/network/feed/" rel="self" type="application/rss+xml" />
+	<link>/</link>
+	<description>Elucidation of the intricate</description>
+	<lastBuildDate>Sat, 05 Nov 2022 21:50:15 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>
+	hourly	</sy:updatePeriod>
+	<sy:updateFrequency>
+	1	</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=6.4.1</generator>
+
+<image>
+	<url>/wp-content/uploads/2022/03/cropped-ms-icon-310x310-1-150x150.png</url>
+	<title>network &#8211; Azorian Solutions</title>
+	<link>/</link>
+	<width>32</width>
+	<height>32</height>
+</image> 
+	<item>
+		<title>Connecting Debian / Ubuntu Virtual Machines To Ceph For Network Storage</title>
+		<link>/compute-stacks/connecting-debian-ubuntu-virtual-machines-to-ceph-for-network-storage/</link>
+					<comments>/compute-stacks/connecting-debian-ubuntu-virtual-machines-to-ceph-for-network-storage/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Sat, 05 Nov 2022 21:50:11 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[ceph]]></category>
+		<category><![CDATA[ceph-fs]]></category>
+		<category><![CDATA[container]]></category>
+		<category><![CDATA[debian]]></category>
+		<category><![CDATA[linux]]></category>
+		<category><![CDATA[mount]]></category>
+		<category><![CDATA[network]]></category>
+		<category><![CDATA[nfs]]></category>
+		<category><![CDATA[storage]]></category>
+		<category><![CDATA[ubuntu]]></category>
+		<category><![CDATA[virtual-machine]]></category>
+		<category><![CDATA[vm]]></category>
+		<guid isPermaLink="false">/?p=650</guid>
+
+					<description><![CDATA[When it comes to network accessible storage in compute stacks, there&#8217;s no shortage of use cases. Whether you&#8217;re deploying multi-homed services that share common files or you just need the increased performance offered by a network file system, Ceph is a great tool for building cost-effective, hyper-converged storage solutions. This tutorial should give you a [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>When it comes to network accessible storage in compute stacks, there&#8217;s no shortage of use cases. Whether you&#8217;re deploying multi-homed services that share common files or you just need the increased performance offered by a network file system, Ceph is a great tool for building cost-effective, hyper-converged storage solutions. This tutorial should give you a very easy start in utilizing Ceph to provide network shares for your virtual machines that operate like native storage.</p>
+
+
+
+<h2 class="wp-block-heading">Ceph Configuration</h2>
+
+
+
+<p>The first step to this process involves configuring Ceph and extracting relevant information needed to setup your virtual machine client. Open a command shell to one of the hosts running Ceph and elevate your access to a user that has permissions to execute Ceph configuration commands.</p>
+
+
+
+<p>Once you have an active command shell to the Ceph server, copy and paste the following script block into the terminal and then execute it with a return as required. This will install the APT package &#8220;jq&#8221; which is used for extracting some of the configuration settings.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>(
+sudo apt install -y jq
+
+FS_NAME_DEF="cephfs"
+FS_PATH_DEF="/"
+FS_PERM_DEF="rw"
+CLIENT_NAME_DEF="vm-client"
+FS_NAME=""
+FS_PATH=""
+FS_PERM=""
+CLIENT_NAME=""
+
+get_fs_name () {
+  clear
+  echo 'Enter the name of the Ceph file system you wish to use and then press return &#91;'"$FS_NAME_DEF"']:'
+  read FS_NAME
+  FS_NAME=$(echo "$FS_NAME" | xargs)
+  if &#91;&#91; ${#FS_NAME} -eq 0 ]]; then
+    FS_NAME="$FS_NAME_DEF"
+  fi
+}
+
+get_fs_path () {
+  clear
+  echo 'Enter the absolute path within the Ceph file system you wish to use and then press return &#91;'"$FS_PATH_DEF"']:'
+  read FS_PATH
+  FS_PATH=$(echo "$FS_PATH" | xargs)
+  if &#91;&#91; ${#FS_PATH} -eq 0 ]]; then
+    FS_PATH="$FS_PATH_DEF"
+  fi
+}
+
+get_fs_perm () {
+  clear
+  echo 'Enter the access permissions for the previously provided path you wish to use and then press return &#91;'"$FS_PERM_DEF"']:'
+  read FS_PERM
+  FS_PERM=$(echo "$FS_PERM" | xargs)
+  if &#91;&#91; ${#FS_PERM} -eq 0 ]]; then
+    FS_PERM="$FS_PERM_DEF"
+  fi
+}
+
+get_client_name () {
+  clear
+  echo 'Enter the name of the Ceph client node and then press return &#91;'"$CLIENT_NAME_DEF"']:'
+  read CLIENT_NAME
+  CLIENT_NAME=$(echo "$CLIENT_NAME" | xargs)
+  if &#91;&#91; ${#CLIENT_NAME} -eq 0 ]]; then
+    CLIENT_NAME="$CLIENT_NAME_DEF"
+  fi
+}
+
+get_fs_name
+get_fs_path
+get_fs_perm
+get_client_name
+ceph fs authorize $FS_NAME client.$CLIENT_NAME $FS_PATH $FS_PERM > /dev/null
+CLIENT_SECRET=$(ceph auth get-or-create-key client.$CLIENT_NAME)
+CEPH_CONF=$(ceph config generate-minimal-conf)
+MON_TARGET=$(ceph mon dump -f json 2>/dev/null|jq --raw-output .mons&#91;0].public_addrs.addrvec&#91;0].addr)
+readarray -d : -t MON_IP&lt;&lt;&lt;"$MON_TARGET"
+
+clear
+echo 'export FS_NAME='"$FS_NAME"
+echo 'export FS_PATH='"$FS_PATH"
+echo 'export CLIENT_NAME='"$CLIENT_NAME"
+echo 'export CLIENT_SECRET='"$CLIENT_SECRET"
+echo 'export MON_IP='"$MON_IP"
+echo 'sudo tee /etc/ceph/ceph.conf &amp;> /dev/null &lt;&lt;EOF
+'"$CEPH_CONF"'
+EOF
+'
+)
+</code></pre>
+
+
+
+<p>This script will prompt you for the following information;</p>
+
+
+
+<ul><li>Ceph file system name that should be used.</li><li>Ceph file system path that should be used. This should be an absolute path within the given file system.</li><li>Ceph file system permissions that should be granted for the previously given file system path. This can be one of &#8220;r&#8221; for read-only, &#8220;w&#8221; for write-only, or &#8220;rw&#8221; for both read and write permissions.</li><li>Ceph client name that should be used. This is what will be used to create a user for Ceph authentication so it should only contain alphanumeric characters as well as underscores and hyphens.</li></ul>
+
+
+
+<p>The rest of the required information will be automatically extracted by the script. If everything executes correctly, you should be left with a Bash script that looks something like this:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>export FS_NAME=cephfs
+export FS_PATH=/vm/docker-stacks
+export CLIENT_NAME=docker-node1
+export CLIENT_SECRET=AQC4YUhjP+NbOxAAH+PViHPlzP4joKruS3qkXg==
+export MON_IP=172.22.1.4
+sudo tee /etc/ceph/ceph.conf &amp;> /dev/null &lt;&lt;EOF
+# minimal ceph.conf for 20fc650f-25a4-42c6-957c-efb594ce1f01
+&#91;global]
+	fsid = 20fc650f-25a4-42c6-957c-efb594ce1f01
+	mon_host = &#91;v2:172.22.1.2:3300/0,v1:172.22.1.2:6789/0] &#91;v2:172.22.1.3:3300/0,v1:172.22.1.3:6789/0] &#91;v2:172.22.1.4:3300/0,v1:172.22.1.4:6789/0]
+EOF</code></pre>
+
+
+
+<p>Copy the Bash script to a text editor for use in the next step.</p>
+
+
+
+<h2 class="wp-block-heading">Virtual Machine Configuration</h2>
+
+
+
+<p>For the remaining steps, open a command shell to the virtual machine that will act as a Ceph client for your application. Once you have an active command shell to the virtual machine, paste the Bash script that was generated from the previous step into the command shell and then execute it with a return as required.</p>
+
+
+
+<p>Now the virtual machine should be ready for configuration. Using the same command shell that the previous Bash script was executed in, paste the following script and then execute it with a return as required.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>(
+MNT_PATH_DEF="/mnt/cephfs"
+MNT_PATH=""
+
+create_mount_path () {
+  echo "The given path $MNT_PATH does not exist. Would you like to create it automatically? Enter yes or no:"
+  read CREATE_PATH
+  CREATE_PATH=$(echo "$CREATE_PATH" | xargs)
+  if &#91;&#91; "$CREATE_PATH" == "yes" ]] || &#91;&#91; "$CREATE_PATH" == "y" ]]; then
+    sudo mkdir $MNT_PATH
+  else
+    clear
+    echo "The given path $MNT_PATH was not automatically created so you must specify an existing directory to use!"
+    echo ''
+    get_mount_path
+  fi
+}
+
+get_mount_path () {
+  echo 'Enter the absolute path of the location you wish to mount the Ceph file system to and then press return &#91;'"$MNT_PATH_DEF"']:'
+  read MNT_PATH
+  MNT_PATH=$(echo "$MNT_PATH" | xargs)
+  if &#91;&#91; ${#MNT_PATH} -eq 0 ]]; then
+    MNT_PATH="$MNT_PATH_DEF"
+  fi
+  if &#91;&#91; ! -d $MNT_PATH ]] &amp;&amp; &#91;&#91; ! -f $MNT_PATH ]]; then
+    clear
+    create_mount_path
+  elif &#91;&#91; -f $MNT_PATH ]]; then
+    clear
+    echo "The given path $MNT_PATH is not a directory!"
+    echo ''
+    get_mount_path
+  fi
+}
+
+clear
+get_mount_path
+
+sudo apt update &amp;&amp; sudo apt install -y software-properties-common
+
+wget -q -O- 'https://download.ceph.com/keys/release.asc' | sudo apt-key add -
+
+echo "deb https://download.ceph.com/debian-pacific/ $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/ceph.list > /dev/null
+
+echo "# deb-src https://download.ceph.com/debian-pacific/ $(lsb_release -cs) stable" | sudo tee -a /etc/apt/sources.list.d/ceph.list > /dev/null  
+
+sudo apt update
+
+sudo apt install -y ceph-common
+
+sudo tee /etc/ceph/ceph.client.$CLIENT_NAME.keyring &amp;> /dev/null &lt;&lt;EOF
+&#91;client.${CLIENT_NAME}]
+    key = ${CLIENT_SECRET}
+EOF
+
+sudo tee /etc/ceph/ceph.client.$CLIENT_NAME.keyring.value &amp;> /dev/null &lt;&lt;EOF
+${CLIENT_SECRET}
+EOF
+
+echo "$MON_IP:$FS_PATH $MNT_PATH ceph name=$CLIENT_NAME,fs=$FS_NAME,recover_session=clean,_netdev 0 2" | sudo tee -a /etc/fstab &amp;> /dev/null
+
+sudo mount $MNT_PATH
+)</code></pre>
+
+
+
+<p>This script will prompt you for the following information:</p>
+
+
+
+<ul><li>Absolute mount path that should be used for mounting the network file system on the virtual machine.</li></ul>
+
+
+
+<p>Once you have provided a valid answer to the previous prompt, the script will proceed to setup the required APT repository, install the required Ceph packages, create the Ceph client credential files, setup an fstab entry, and then mount the configured file system at the given mount path.</p>
+
+
+
+<p>If everything executed as expected, you should now find that the Ceph file system is mounted and ready for use!</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/connecting-debian-ubuntu-virtual-machines-to-ceph-for-network-storage/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+		<item>
+		<title>Connecting Kubernetes To Your Network Using BGP</title>
+		<link>/compute-stacks/connecting-kubernetes-to-your-network-using-bgp/</link>
+					<comments>/compute-stacks/connecting-kubernetes-to-your-network-using-bgp/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Sun, 27 Mar 2022 17:11:31 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[asn]]></category>
+		<category><![CDATA[bgp]]></category>
+		<category><![CDATA[calico]]></category>
+		<category><![CDATA[cni]]></category>
+		<category><![CDATA[containerization]]></category>
+		<category><![CDATA[containers]]></category>
+		<category><![CDATA[k8s]]></category>
+		<category><![CDATA[kubectl]]></category>
+		<category><![CDATA[kubernetes]]></category>
+		<category><![CDATA[network]]></category>
+		<category><![CDATA[networking]]></category>
+		<category><![CDATA[peering]]></category>
+		<category><![CDATA[virtualization]]></category>
+		<guid isPermaLink="false">https://azorian.solutions/?p=534</guid>
+
+					<description><![CDATA[Having a Kubernetes cluster to run your network services is incredibly valuable for many organizations. However, the default configuration of a basic cluster using the Calico CNI isn&#8217;t really very ideal for simple automated deployment of services as ingress communications require some form of proxy running in the cluster. Many examples will reference uses of [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>Having a Kubernetes cluster to run your network services is incredibly valuable for many organizations. However, the default configuration of a basic cluster using the Calico CNI isn&#8217;t really very ideal for simple automated deployment of services as ingress communications require some form of proxy running in the cluster. Many examples will reference uses of the Kube-Proxy component to provide ingress communications. This approach isn&#8217;t very ideal in my opinion as it still requires a fair amount of manual configuration to expose services in the cluster to an external network. Calico CNI uses BGP peering between nodes by default which is great for achieving the highest performance and simplicity in your cluster networking. This approach does not encapsulate any layer 3 traffic on the wire so you can easily inspect your traffic for debugging purposes.</p>
+
+
+
+<p>Enter BGP peering for Kubernetes using Calico CNI. Using this method, you can have all of your Kubernetes nodes communicate directly with an external network router via BGP in order to distribute routes to your cluster services and pods. Once this has been setup, any services you configure (properly) in your cluster will become immediately accessible to your network as routes are injected immediately upon activation.</p>
+
+
+
+<p>In order to apply the YAML formatted configuration files needed to setup BGP peering, you will need to have the Calico CNI control script installed in an environment that has proper permissions to manage the cluster. If you used the tutorial I provided in this blog for deploying Kubernetes, then this control script will have already been installed to each of your control plane nodes with the alias &#8220;kubectl-calico&#8221; and &#8220;calicoctl&#8221; so you&#8217;re already good to get started.</p>
+
+
+
+<p>If you setup your Kubernetes cluster some other way and do not currently have the Calico CNI control script installed, execute the following commands from an environment you have setup with kubectl for the cluster:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>export calico_version=$(curl --silent "https://api.github.com/repos/projectcalico/calico/releases/latest" | grep '"tag_name":' | sed -E 's/.*"(&#91;^"]+)".*/\1/')
+
+curl -A "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/81.0" -o kubectl-calico -L https://github.com/projectcalico/calico/releases/download/$calico_version/calicoctl-linux-amd64
+
+sudo chown root:root kubectl-calico
+sudo chmod +x kubectl-calico
+sudo mv kubectl-calico /usr/local/bin/
+sudo ln -s /usr/local/bin/kubectl-calico /usr/local/bin/calicoctl</code></pre>
+
+
+
+<p>At this point, you should be ready to start building the basic configuration file required to update the Calico CNI in order to establish BGP peering both with your network router and between nodes (route reflection). The example I provide in this tutorial will assume a very basic setup that assumes only one availability zone with a single top-of-rack (ToR) router. If you are building something with even better redundancy, it&#8217;s not complicated to pivot from this configuration to one that supports multiple availability zones and/or multiple ToR routers.</p>
+
+
+
+<p>Let&#8217;s start by applying some additional labels to all of your cluster nodes. These labels will be used to selectively enable route reflection via BGP. Execute the following command for each node in your cluster by updating the &#8220;HOSTNAME-HERE&#8221; string to match the hostname configured on each node. If you&#8217;re unsure of a node&#8217;s hostname, just execute the &#8220;hostname&#8221; command on that node.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl label node HOSTNAME-HERE route-reflector=true</code></pre>
+
+
+
+<p>After this has been completed, you can verify that everything looks correct by executing the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl get nodes --show-labels</code></pre>
+
+
+
+<p>Now let&#8217;s create a YAML formatted configuration file using the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>echo 'apiVersion: projectcalico.org/v3
+kind: BGPConfiguration
+metadata:
+  name: default
+spec:
+  logSeverityScreen: Info
+  nodeToNodeMeshEnabled: false
+  serviceClusterIPs:
+  - cidr: 10.10.10.0/23
+  serviceExternalIPs:
+  - cidr: 10.10.0.0/23
+  - cidr: 172.21.0.0/24
+  listenPort: 179
+---
+apiVersion: projectcalico.org/v3
+kind: BGPPeer
+metadata:
+  name: as-rtr1
+spec:
+  peerIP: 172.22.100.254
+  asNumber: 64512
+---
+apiVersion: projectcalico.org/v3
+kind: BGPPeer
+metadata:
+  name: as-node
+spec:
+  nodeSelector: all()
+  peerSelector: route-reflector == \'true\'' | tee /tmp/calico-bgp-configuration.yaml</code></pre>
+
+
+
+<p>Before you apply this configuration file to the cluster, some of the values will probably need modified to reflect appropriate settings that match your environment.</p>
+
+
+
+<p>The first item to update is the &#8220;serviceClusterIPs&#8221; entry. This should contain the CIDR that you configured for your service networks CIDR when initializing the cluster. If you followed my tutorial for deploying the Kubernetes cluster initially, all of this should have some familiarity already.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>  serviceClusterIPs:
+  - cidr: 10.10.10.0/23</code></pre>
+
+
+
+<p>The next item to update is the &#8220;serviceExternalIPs&#8221; entry. This should contain one or more CIDR entries to reflect any IP ranges that you intend to assign external service IP addresses from. For example, if you were going to deploy a DNS resolver for your network with an IP address of &#8220;10.10.0.1&#8221; then you would add a CIDR entry that includes that particular IP address such as &#8220;- cidr: 10.10.0.0/24&#8221;. IP addresses assigned to services from the ranges configured in this entry will be announced as individual /32 routes via BGP. This can be very useful if you need to cherry pick addresses in-between existing network allocations or if you need to temporarily &#8220;hijack&#8221; the traffic of another service on your network. A good example of this would be doing brief testing of new services that will replace existing deployments elsewhere on your network.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>  serviceExternalIPs:
+  - cidr: 10.10.0.0/23
+  - cidr: 172.21.0.0/24</code></pre>
+
+
+
+<p>Lastly, you may need to update the &#8220;peerIP&#8221; and &#8220;asNumber&#8221; entries to reflect the appropriate IP address and ASN of your ToR router that the cluster nodes should peer to.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>spec:
+  peerIP: 172.22.100.254
+  asNumber: 64512</code></pre>
+
+
+
+<p>Now that the configuration file is ready, it&#8217;s time to apply it to the cluster. Don&#8217;t forget that you will need to update your ToR router with the appropriate configuration to support BGP peering from each of your cluster nodes. The remote ASN used by the cluster nodes in this configuration will be the same as the ASN assigned in the previous section. To apply the configuration file to the cluster, execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>calicoctl apply -f /tmp/calico-bgp-configuration.yaml</code></pre>
+
+
+
+<p>At this point, if your ToR router has already been properly configured for BGP peering to your cluster nodes, you should see the peering relationships begin to establish after no more than one to two minutes typically, often quicker depending on your ToR router&#8217;s BGP configuration.</p>
+
+
+
+<p>That&#8217;s it! Wow, wasn&#8217;t that simple? Your Kubernetes cluster is now ready to begin announcing routes for any services and pods that you deploy. Once the relationships have been established, you should see some announcements to cover what is already deployed in the cluster. You will only see /32 announcements for services which have been configured with one or more external IP addresses. None of the default services deployed for a fresh cluster define this setting so don&#8217;t expect to see any out of the gate if you have not already configured something this way.</p>
+
+
+
+<p>There are some important details to note about this particular configuration (which can be alternated to work slightly differently). With this configuration, the node-to-node mesh networking is disabled which means that traffic for a given service IP will be routed only to the cluster nodes which are actively hosted an instance of the service. This is really handy if any of your services have a need to see the source IP of ingress traffic (such as for security purposes). Depending on your use case, this might not be the most ideal configuration though since additional external configuration would be required on your router to properly balance ingress traffic to each node hosting a service instance.</p>
+
+
+
+<p>When you use the node-to-node mesh networking feature, you can direct ingress traffic for your services to any mesh node in the cluster even if the service doesn&#8217;t have an instance running on a particular node. If the service isn&#8217;t running locally, the node will forward the traffic to a different node that is running the service. This approach is great if you want ingress traffic to be automatically balanced across all available nodes running a particular service. The caveat here is that when using mesh networking, your service may not always see the source IP address of the ingress traffic since the packets will be rewritten with a source IP address that reflects the cluster node that forwarded the traffic via the mesh network.</p>
+
+
+
+<p>I recommend you check out <a href="/compute-stacks/connecting-kubernetes-to-a-ceph-cluster-using-rook/" data-type="URL" data-id="/compute-stacks/connecting-kubernetes-to-a-ceph-cluster-using-rook/">this post</a> next to take your Kubernetes deployment to the next level.</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/connecting-kubernetes-to-your-network-using-bgp/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+	</channel>
+</rss>

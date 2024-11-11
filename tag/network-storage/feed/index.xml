@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>network storage &#8211; Azorian Solutions</title>
+	<atom:link href="/tag/network-storage/feed/" rel="self" type="application/rss+xml" />
+	<link>/</link>
+	<description>Elucidation of the intricate</description>
+	<lastBuildDate>Mon, 28 Mar 2022 20:49:24 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>
+	hourly	</sy:updatePeriod>
+	<sy:updateFrequency>
+	1	</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=6.4.1</generator>
+
+<image>
+	<url>/wp-content/uploads/2022/03/cropped-ms-icon-310x310-1-150x150.png</url>
+	<title>network storage &#8211; Azorian Solutions</title>
+	<link>/</link>
+	<width>32</width>
+	<height>32</height>
+</image> 
+	<item>
+		<title>Connecting Kubernetes To A Ceph Cluster Using Rook</title>
+		<link>/compute-stacks/connecting-kubernetes-to-a-ceph-cluster-using-rook/</link>
+					<comments>/compute-stacks/connecting-kubernetes-to-a-ceph-cluster-using-rook/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Mon, 28 Mar 2022 16:30:28 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[block]]></category>
+		<category><![CDATA[ceph]]></category>
+		<category><![CDATA[ceph fs]]></category>
+		<category><![CDATA[cluster]]></category>
+		<category><![CDATA[external storage]]></category>
+		<category><![CDATA[file system]]></category>
+		<category><![CDATA[k8s]]></category>
+		<category><![CDATA[kubernetes]]></category>
+		<category><![CDATA[network storage]]></category>
+		<category><![CDATA[raw block device]]></category>
+		<category><![CDATA[rbd]]></category>
+		<category><![CDATA[storage]]></category>
+		<category><![CDATA[storage class]]></category>
+		<guid isPermaLink="false">https://azorian.solutions/?p=543</guid>
+
+					<description><![CDATA[Using Kubernetes for container orchestration is great but if you are going to scale our deployment into a multi-node cluster, you will likely find a new challenge quickly. Using local storage for your containers will quickly break the value of orchestration as your containers change nodes from time to time. This is where network based [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>Using Kubernetes for container orchestration is great but if you are going to scale our deployment into a multi-node cluster, you will likely find a new challenge quickly. Using local storage for your containers will quickly break the value of orchestration as your containers change nodes from time to time. This is where network based file storage systems become very valuable when used in-conjunction with a Kubernetes cluster. There are numerous different network file storage systems that are readily available for integration into Kubernetes. For this tutorial, I am going to focus on Ceph as it is often found in the on-premises environments that my tutorials are focused towards.</p>
+
+
+
+<p>Ceph offers three types of storage that can all be used in Kubernetes which are object storage (rados), block storage (RBD), and file systems (Ceph FS). This tutorial will focus on the latter two as that is all that is needed to hit the ground running with a number of common scenarios. It&#8217;s also worth mentioning that setting up the Ceph object storage system rados is a fairly intensive process that would at least justify it&#8217;s own blog post. You are probably already familiar with Ceph&#8217;s object storage system rados though as it&#8217;s a cross-compatible equivalent of Amazon Web Service&#8217;s S3 product. Anywhere you can use AWS&#8217;s S3 for storage, you can alternatively use Ceph&#8217;s rados gateway to achieve the same outcome.</p>
+
+
+
+<p>There are a number of different ways to connect a Kubernetes cluster to Ceph to achieve network based data storage but I will be focusing on a method that uses Rook. This method seems to be the most popular choice currently for ease of use and efficiency. Before you get started, you will need a command shell in an environment that has kubectl available with the appropriate configuration to allow administrative access to the cluster you wish to connect to Ceph. You will also need administrative access to the Ceph cluster which you intend to connect to the Kubernetes cluster. This tutorial will focus on using CLI based access to Ceph in order to complete the steps but if you know what you&#8217;re doing, you can achieve some of the same goals using a GUI based approach such as the controls provided in Proxmox Virtualization Environment.</p>
+
+
+
+<p>I have not widely tested this implementation with various combinations of Ceph and Rook but you should be aware there is a history of specific releases having known issues that require some manual intervention. My test case is based off of a Ceph 16.2.7 deployment running on top of Proxmox Virtualization Environment 7.1-7 with Rook version 1.8.1.</p>
+
+
+
+<p>Let&#8217;s start by gathering some data from the Ceph environment that will be needed to connect Kubernetes to the Ceph environment. Execute the following commands in the Ceph environment with a user that has the appropriate permissions to access sensitive Ceph configuration data (such as root) and then copy the output so that it can be executed in your Kubernetes environment:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>ROOK_EXTERNAL_FSID=$(ceph fsid)
+
+ROOK_EXTERNAL_CEPH_MON_DATA=$(ceph mon dump -f json 2&gt;/dev/null|jq --raw-output .mons&#91;0].name)=$(ceph mon dump -f json 2&gt;/dev/null|jq --raw-output .mons&#91;0].public_addrs.addrvec&#91;0].addr)
+
+ROOK_EXTERNAL_ADMIN_SECRET=$(ceph auth get-key client.admin)
+
+clear
+echo 'export NAMESPACE=rook-ceph-external'
+echo 'export ROOK_EXTERNAL_FSID='"$ROOK_EXTERNAL_FSID"
+echo 'export ROOK_EXTERNAL_CEPH_MON_DATA='"$ROOK_EXTERNAL_CEPH_MON_DATA"
+echo 'export ROOK_EXTERNAL_ADMIN_SECRET='"$ROOK_EXTERNAL_ADMIN_SECRET"</code></pre>
+
+
+
+<p>This should produce a result similar to the following:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>export NAMESPACE=rook-ceph-external
+export ROOK_EXTERNAL_FSID=XXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+export ROOK_EXTERNAL_CEPH_MON_DATA=NODE_HOSTNAME=000.000.000.000:3300
+export ROOK_EXTERNAL_ADMIN_SECRET=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</code></pre>
+
+
+
+<p>Copy all four of those lines and stash them in a text file for use later in this tutorial. Now you need to grab a copy of the Rook project files so execute the following commands in your kubectl enabled environment:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>git clone -b v1.8.1 https://github.com/rook/rook.git
+cd rook/deploy/examples</code></pre>
+
+
+
+<p>Now it&#8217;s time to load the Kubernetes cluster with all of the Rook / Ceph dependencies needed to connect the two environments. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl create -f crds.yaml -f common.yaml -f operator.yaml -f common-external.yaml</code></pre>
+
+
+
+<p>You can check that all is well and completed by running the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl get pods -n rook-ceph</code></pre>
+
+
+
+<p>This command should yield an output similar to the following:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>NAME                                 READY   STATUS    RESTARTS   AGE
+rook-ceph-operator-b89545b4f-psh7j   1/1     Running   0          2m56s</code></pre>
+
+
+
+<p>Now it&#8217;s time to setup some security and configuration related objects in Kubernetes to support the connection. Make a copy of the command output from the earlier step that you stashed away and execute those four commands in your Kubernetes environment.</p>
+
+
+
+<p>The rest of this step is pretty easy as Rook has provided a bash script to do the work for you by using the values set in the environment variables from the previous step. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>bash import-external-cluster.sh</code></pre>
+
+
+
+<p>This next step shouldn&#8217;t be necessary but there is still a bit of a lingering oversight in the Rook&#8217;s implementation design that results in an issue where a blank Ceph username and secret value are stored into the associated Kubernetes configuration. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl edit secret rook-ceph-mon -n rook-ceph-external</code></pre>
+
+
+
+<p>This should launch a VIM style editor in the CLI with some YAML formatted data visible. You need to delete the following two lines from this view and then save changes and exit:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>  ceph-secret: ""
+  ceph-username: ""</code></pre>
+
+
+
+<p>Now you&#8217;re ready to actually connect the Ceph environment with Kubernetes by applying a YAML configuration that contains the CephCluster object. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl apply -f cluster-external.yaml</code></pre>
+
+
+
+<p>This step may take some time to fully complete depending on your environment so you can run the following command to watch for the status:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>watch -n 2 kubectl get cephcluster -n rook-ceph-external</code></pre>
+
+
+
+<p>When everything is ready and all went well, you should see the &#8220;Phase&#8221; column value as &#8220;Connected&#8221;.</p>
+
+
+
+<p>Now let&#8217;s move on to getting Ceph configured with a new Ceph file system to support the Kubernetes cluster. Of course, you can re-use an existing one if you like to conserve growth capacity given that each Ceph file system requires it&#8217;s own metadata server (MDS) and only one MDS can be ran on a Ceph node. Be aware though, if you re-use the same Ceph file system you may have setup for use in a PVE cluster, you need to be extra cautious with actions you take in the future as to not accidentally damage or destroy a mission critical storage system for your PVE cluster.</p>
+
+
+
+<p>Update the following list of commands to reflect the name of the CephFS  you would like to create or use the appropriate names of an existing CephFS that you would like to re-use for your Kubernetes environment. Once you have updated the list of commands, execute them in your kubectl environment. If you are creating a new CephFS instead of re-using an existing one, execute these commands in your Ceph environment as well.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>cephfs_name=k8s-cephfs
+cephfs_metadata_pool=k8s-cephfs_metadata
+cephfs_data_pool=k8s-cephfs_data</code></pre>
+
+
+
+<p>If you are creating a new CephFS instead of re-using an existing one, execute the following commands in your Ceph environment:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>ceph osd pool create $cephfs_metadata_pool
+ceph osd pool create $cephfs_data_pool
+ceph fs new $cephfs_name $cephfs_metadata_pool $cephfs_data_pool</code></pre>
+
+
+
+<p>Now that you have a Ceph file system ready for use, it&#8217;s time to setup two storage classes in your Kubernetes environment to provide containers with both block and file system storage options. You need to update the storage class templates before you apply them to the Kubernetes environment by executing the following commands:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sed -i 's/clusterID\:\srook-ceph/clusterID\: rook-ceph-external/g' csi/rbd/storageclass.yaml
+sed -i 's/clusterID\:\srook-ceph/clusterID\: rook-ceph-external/g' csi/cephfs/storageclass.yaml
+sed -i 's/fsName\:\smyfs/fsName\: '"$cephfs_name"'/g' csi/cephfs/storageclass.yaml
+sed -i 's/pool\:\smyfs\-replicated/pool\: '"$cephfs_data_pool"'/g' csi/cephfs/storageclass.yaml
+sed -i 's/csi.storage.k8s.io\/provisioner-secret-namespace\:\srook-ceph/csi.storage.k8s.io\/provisioner-secret-namespace\: rook-ceph-external/g' csi/cephfs/storageclass.yaml
+sed -i 's/csi.storage.k8s.io\/controller-expand-secret-namespace\:\srook-ceph/csi.storage.k8s.io\/controller-expand-secret-namespace\: rook-ceph-external/g' csi/cephfs/storageclass.yaml
+sed -i 's/csi.storage.k8s.io\/node-stage-secret-namespace\:\srook-ceph/csi.storage.k8s.io\/node-stage-secret-namespace\: rook-ceph-external/g' csi/cephfs/storageclass.yaml</code></pre>
+
+
+
+<p>Now you can apply the storage class templates to the Kubernetes environment by executing the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl create -f csi/rbd/storageclass.yaml -f csi/cephfs/storageclass.yaml</code></pre>
+
+
+
+<p>The final step to this process is to set a default storage class for scenarios where a storage class is not specifically defined. I typically choose to use the RBD storage class as I most commonly use that. I use the CephFS storage class for scenarios where data needs to be consumed by more than one container simultaneously such as web application files in a high availability configuration. Execute the following command to set the default storage class to the new Ceph RBD option:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl patch storageclass rook-ceph-block -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'</code></pre>
+
+
+
+<p>That&#8217;s it! You&#8217;re now ready to start deploying containers that consume storage directly from your Ceph cluster.</p>
+
+
+
+<p>I recommend you check out <a href="/compute-stacks/automatic-virtual-host-setup-using-nginx-ingress-controller-on-kubernetes/" data-type="URL" data-id="/compute-stacks/automatic-virtual-host-setup-using-nginx-ingress-controller-on-kubernetes/">this post</a> next to take your Kubernetes deployment to the next level.</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/connecting-kubernetes-to-a-ceph-cluster-using-rook/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+	</channel>
+</rss>

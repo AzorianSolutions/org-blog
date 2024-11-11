@@ -1,0 +1,1582 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>Compute Stacks &#8211; Azorian Solutions</title>
+	<atom:link href="/category/compute-stacks/feed/" rel="self" type="application/rss+xml" />
+	<link>/</link>
+	<description>Elucidation of the intricate</description>
+	<lastBuildDate>Sat, 05 Nov 2022 21:50:15 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>
+	hourly	</sy:updatePeriod>
+	<sy:updateFrequency>
+	1	</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=6.4.1</generator>
+
+<image>
+	<url>/wp-content/uploads/2022/03/cropped-ms-icon-310x310-1-150x150.png</url>
+	<title>Compute Stacks &#8211; Azorian Solutions</title>
+	<link>/</link>
+	<width>32</width>
+	<height>32</height>
+</image> 
+	<item>
+		<title>Connecting Debian / Ubuntu Virtual Machines To Ceph For Network Storage</title>
+		<link>/compute-stacks/connecting-debian-ubuntu-virtual-machines-to-ceph-for-network-storage/</link>
+					<comments>/compute-stacks/connecting-debian-ubuntu-virtual-machines-to-ceph-for-network-storage/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Sat, 05 Nov 2022 21:50:11 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[ceph]]></category>
+		<category><![CDATA[ceph-fs]]></category>
+		<category><![CDATA[container]]></category>
+		<category><![CDATA[debian]]></category>
+		<category><![CDATA[linux]]></category>
+		<category><![CDATA[mount]]></category>
+		<category><![CDATA[network]]></category>
+		<category><![CDATA[nfs]]></category>
+		<category><![CDATA[storage]]></category>
+		<category><![CDATA[ubuntu]]></category>
+		<category><![CDATA[virtual-machine]]></category>
+		<category><![CDATA[vm]]></category>
+		<guid isPermaLink="false">/?p=650</guid>
+
+					<description><![CDATA[When it comes to network accessible storage in compute stacks, there&#8217;s no shortage of use cases. Whether you&#8217;re deploying multi-homed services that share common files or you just need the increased performance offered by a network file system, Ceph is a great tool for building cost-effective, hyper-converged storage solutions. This tutorial should give you a [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>When it comes to network accessible storage in compute stacks, there&#8217;s no shortage of use cases. Whether you&#8217;re deploying multi-homed services that share common files or you just need the increased performance offered by a network file system, Ceph is a great tool for building cost-effective, hyper-converged storage solutions. This tutorial should give you a very easy start in utilizing Ceph to provide network shares for your virtual machines that operate like native storage.</p>
+
+
+
+<h2 class="wp-block-heading">Ceph Configuration</h2>
+
+
+
+<p>The first step to this process involves configuring Ceph and extracting relevant information needed to setup your virtual machine client. Open a command shell to one of the hosts running Ceph and elevate your access to a user that has permissions to execute Ceph configuration commands.</p>
+
+
+
+<p>Once you have an active command shell to the Ceph server, copy and paste the following script block into the terminal and then execute it with a return as required. This will install the APT package &#8220;jq&#8221; which is used for extracting some of the configuration settings.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>(
+sudo apt install -y jq
+
+FS_NAME_DEF="cephfs"
+FS_PATH_DEF="/"
+FS_PERM_DEF="rw"
+CLIENT_NAME_DEF="vm-client"
+FS_NAME=""
+FS_PATH=""
+FS_PERM=""
+CLIENT_NAME=""
+
+get_fs_name () {
+  clear
+  echo 'Enter the name of the Ceph file system you wish to use and then press return &#91;'"$FS_NAME_DEF"']:'
+  read FS_NAME
+  FS_NAME=$(echo "$FS_NAME" | xargs)
+  if &#91;&#91; ${#FS_NAME} -eq 0 ]]; then
+    FS_NAME="$FS_NAME_DEF"
+  fi
+}
+
+get_fs_path () {
+  clear
+  echo 'Enter the absolute path within the Ceph file system you wish to use and then press return &#91;'"$FS_PATH_DEF"']:'
+  read FS_PATH
+  FS_PATH=$(echo "$FS_PATH" | xargs)
+  if &#91;&#91; ${#FS_PATH} -eq 0 ]]; then
+    FS_PATH="$FS_PATH_DEF"
+  fi
+}
+
+get_fs_perm () {
+  clear
+  echo 'Enter the access permissions for the previously provided path you wish to use and then press return &#91;'"$FS_PERM_DEF"']:'
+  read FS_PERM
+  FS_PERM=$(echo "$FS_PERM" | xargs)
+  if &#91;&#91; ${#FS_PERM} -eq 0 ]]; then
+    FS_PERM="$FS_PERM_DEF"
+  fi
+}
+
+get_client_name () {
+  clear
+  echo 'Enter the name of the Ceph client node and then press return &#91;'"$CLIENT_NAME_DEF"']:'
+  read CLIENT_NAME
+  CLIENT_NAME=$(echo "$CLIENT_NAME" | xargs)
+  if &#91;&#91; ${#CLIENT_NAME} -eq 0 ]]; then
+    CLIENT_NAME="$CLIENT_NAME_DEF"
+  fi
+}
+
+get_fs_name
+get_fs_path
+get_fs_perm
+get_client_name
+ceph fs authorize $FS_NAME client.$CLIENT_NAME $FS_PATH $FS_PERM > /dev/null
+CLIENT_SECRET=$(ceph auth get-or-create-key client.$CLIENT_NAME)
+CEPH_CONF=$(ceph config generate-minimal-conf)
+MON_TARGET=$(ceph mon dump -f json 2>/dev/null|jq --raw-output .mons&#91;0].public_addrs.addrvec&#91;0].addr)
+readarray -d : -t MON_IP&lt;&lt;&lt;"$MON_TARGET"
+
+clear
+echo 'export FS_NAME='"$FS_NAME"
+echo 'export FS_PATH='"$FS_PATH"
+echo 'export CLIENT_NAME='"$CLIENT_NAME"
+echo 'export CLIENT_SECRET='"$CLIENT_SECRET"
+echo 'export MON_IP='"$MON_IP"
+echo 'sudo tee /etc/ceph/ceph.conf &amp;> /dev/null &lt;&lt;EOF
+'"$CEPH_CONF"'
+EOF
+'
+)
+</code></pre>
+
+
+
+<p>This script will prompt you for the following information;</p>
+
+
+
+<ul><li>Ceph file system name that should be used.</li><li>Ceph file system path that should be used. This should be an absolute path within the given file system.</li><li>Ceph file system permissions that should be granted for the previously given file system path. This can be one of &#8220;r&#8221; for read-only, &#8220;w&#8221; for write-only, or &#8220;rw&#8221; for both read and write permissions.</li><li>Ceph client name that should be used. This is what will be used to create a user for Ceph authentication so it should only contain alphanumeric characters as well as underscores and hyphens.</li></ul>
+
+
+
+<p>The rest of the required information will be automatically extracted by the script. If everything executes correctly, you should be left with a Bash script that looks something like this:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>export FS_NAME=cephfs
+export FS_PATH=/vm/docker-stacks
+export CLIENT_NAME=docker-node1
+export CLIENT_SECRET=AQC4YUhjP+NbOxAAH+PViHPlzP4joKruS3qkXg==
+export MON_IP=172.22.1.4
+sudo tee /etc/ceph/ceph.conf &amp;> /dev/null &lt;&lt;EOF
+# minimal ceph.conf for 20fc650f-25a4-42c6-957c-efb594ce1f01
+&#91;global]
+	fsid = 20fc650f-25a4-42c6-957c-efb594ce1f01
+	mon_host = &#91;v2:172.22.1.2:3300/0,v1:172.22.1.2:6789/0] &#91;v2:172.22.1.3:3300/0,v1:172.22.1.3:6789/0] &#91;v2:172.22.1.4:3300/0,v1:172.22.1.4:6789/0]
+EOF</code></pre>
+
+
+
+<p>Copy the Bash script to a text editor for use in the next step.</p>
+
+
+
+<h2 class="wp-block-heading">Virtual Machine Configuration</h2>
+
+
+
+<p>For the remaining steps, open a command shell to the virtual machine that will act as a Ceph client for your application. Once you have an active command shell to the virtual machine, paste the Bash script that was generated from the previous step into the command shell and then execute it with a return as required.</p>
+
+
+
+<p>Now the virtual machine should be ready for configuration. Using the same command shell that the previous Bash script was executed in, paste the following script and then execute it with a return as required.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>(
+MNT_PATH_DEF="/mnt/cephfs"
+MNT_PATH=""
+
+create_mount_path () {
+  echo "The given path $MNT_PATH does not exist. Would you like to create it automatically? Enter yes or no:"
+  read CREATE_PATH
+  CREATE_PATH=$(echo "$CREATE_PATH" | xargs)
+  if &#91;&#91; "$CREATE_PATH" == "yes" ]] || &#91;&#91; "$CREATE_PATH" == "y" ]]; then
+    sudo mkdir $MNT_PATH
+  else
+    clear
+    echo "The given path $MNT_PATH was not automatically created so you must specify an existing directory to use!"
+    echo ''
+    get_mount_path
+  fi
+}
+
+get_mount_path () {
+  echo 'Enter the absolute path of the location you wish to mount the Ceph file system to and then press return &#91;'"$MNT_PATH_DEF"']:'
+  read MNT_PATH
+  MNT_PATH=$(echo "$MNT_PATH" | xargs)
+  if &#91;&#91; ${#MNT_PATH} -eq 0 ]]; then
+    MNT_PATH="$MNT_PATH_DEF"
+  fi
+  if &#91;&#91; ! -d $MNT_PATH ]] &amp;&amp; &#91;&#91; ! -f $MNT_PATH ]]; then
+    clear
+    create_mount_path
+  elif &#91;&#91; -f $MNT_PATH ]]; then
+    clear
+    echo "The given path $MNT_PATH is not a directory!"
+    echo ''
+    get_mount_path
+  fi
+}
+
+clear
+get_mount_path
+
+sudo apt update &amp;&amp; sudo apt install -y software-properties-common
+
+wget -q -O- 'https://download.ceph.com/keys/release.asc' | sudo apt-key add -
+
+echo "deb https://download.ceph.com/debian-pacific/ $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/ceph.list > /dev/null
+
+echo "# deb-src https://download.ceph.com/debian-pacific/ $(lsb_release -cs) stable" | sudo tee -a /etc/apt/sources.list.d/ceph.list > /dev/null  
+
+sudo apt update
+
+sudo apt install -y ceph-common
+
+sudo tee /etc/ceph/ceph.client.$CLIENT_NAME.keyring &amp;> /dev/null &lt;&lt;EOF
+&#91;client.${CLIENT_NAME}]
+    key = ${CLIENT_SECRET}
+EOF
+
+sudo tee /etc/ceph/ceph.client.$CLIENT_NAME.keyring.value &amp;> /dev/null &lt;&lt;EOF
+${CLIENT_SECRET}
+EOF
+
+echo "$MON_IP:$FS_PATH $MNT_PATH ceph name=$CLIENT_NAME,fs=$FS_NAME,recover_session=clean,_netdev 0 2" | sudo tee -a /etc/fstab &amp;> /dev/null
+
+sudo mount $MNT_PATH
+)</code></pre>
+
+
+
+<p>This script will prompt you for the following information:</p>
+
+
+
+<ul><li>Absolute mount path that should be used for mounting the network file system on the virtual machine.</li></ul>
+
+
+
+<p>Once you have provided a valid answer to the previous prompt, the script will proceed to setup the required APT repository, install the required Ceph packages, create the Ceph client credential files, setup an fstab entry, and then mount the configured file system at the given mount path.</p>
+
+
+
+<p>If everything executed as expected, you should now find that the Ceph file system is mounted and ready for use!</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/connecting-debian-ubuntu-virtual-machines-to-ceph-for-network-storage/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+		<item>
+		<title>Introduction To Containerized Services</title>
+		<link>/compute-stacks/introduction-to-containerized-services/</link>
+					<comments>/compute-stacks/introduction-to-containerized-services/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Mon, 28 Mar 2022 23:45:31 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[compose]]></category>
+		<category><![CDATA[containerd]]></category>
+		<category><![CDATA[containers]]></category>
+		<category><![CDATA[deployment]]></category>
+		<category><![CDATA[docker]]></category>
+		<category><![CDATA[hosting]]></category>
+		<category><![CDATA[k8s]]></category>
+		<category><![CDATA[kubernetes]]></category>
+		<category><![CDATA[networking]]></category>
+		<category><![CDATA[podman]]></category>
+		<category><![CDATA[portability]]></category>
+		<category><![CDATA[virtualization]]></category>
+		<guid isPermaLink="false">/?p=637</guid>
+
+					<description><![CDATA[So you&#8217;ve heard about this container thing through the grapevine? You have probably heard it referenced through the use of the term Docker more so than container as many seem to misuse the term Docker to describe the concept of containers. Terminology is important because not all containers are created equally! For instance, you may [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>So you&#8217;ve heard about this container thing through the grapevine? You have probably heard it referenced through the use of the term Docker more so than container as many seem to misuse the term Docker to describe the concept of containers. Terminology is important because not all containers are created equally! For instance, you may have ever heard of Linux containers which are often referenced as LXC such as those in Proxmox Virtualization Environment. This type of container is not the same as the containers that are ran by Docker Engine, Podman, and Kubernetes. Containers that run on Docker Engine, Podman, and Kubernetes are Open Container Initiative (OCI) compliant excluding Docker built images which typically require some form of shimming outside of the Docker Engine. This is not to say that one can&#8217;t be ran in the environment of the other but this is not a two way street. Through the use of additional tooling, one can actually run OCI compliant container images with LXC but the inverse is not so true.</p>
+
+
+
+<p>Given that the general focus of many of my blog posts will be containerization using OCI compliant images, I am not going to go into great detail about the LXC system but some of the benefits I outline about OCI containers will also be true for LXC.</p>
+
+
+
+<p>So why bother with containers anyways when you have perfectly great environments for running virtual machines? Well, it seems like the list of reasons is endless but I will try to cover many of the reasons I know and find relevant to most of what I do. So let&#8217;s jump right in to it and I will explain many of the high level areas of benefits.</p>
+
+
+
+<h2 class="wp-block-heading">Resource Efficiency</h2>
+
+
+
+<p>If you have ever created a number of virtual machines and then taken notice to their idle resource utilization before you have configured them for their particular roles,  you may have noticed that the utilization is not exactly tiny for a machine that isn&#8217;t really doing anything. This is because the Linux kernel while very efficient compared to that POS Windows, is still a bit heavy once loaded into memory. This isn&#8217;t a bad thing since after all, it offers some pretty amazing abilities. This is however often wasteful in a number of environments that don&#8217;t really need to have a large number of Linux kernel copies running just to service one or two primary processes per virtual machine.</p>
+
+
+
+<p>There are some scenarios that justify the use of separate kernels still for truly mission critical security guarantees such as those maintained by nation states. This isn&#8217;t to say that the Linux kernel is insecure as it provides all of the appropriate isolation facilities for containers to run fully isolated from one another. However, humans make mistakes and every once in awhile, a security bug may come along that could put this isolation at risk. This is exactly why every application should be considered on a case by case basis. If you&#8217;re just running some everyday applications like database servers, DNS servers, and others alike that don&#8217;t hold truly sensitive data (like the kind that could contribute to the loss of millions of dollars or human life) then you really don&#8217;t need to achieve paranoid level security policies.</p>
+
+
+
+<p>This is where containers really shine in a noticeable way as the overhead for a container is more or less just the overhead of the process or processes that it runs as opposed to creating entire copies of the Linux kernel. Instead, containers on a container host simply share the resources of the host machine through the user of kernel cgroups and namespaces. Namespaces allow for the creation of virtual hardware in the container and act as a sort of gateway to the underlying host hardware that is to be shared between containers.  Kernel control groups (or cgroups for short) are used to apply limits, prioritization, accounting and control of various system resources such as memory, CPU, and file systems. You can can read more about Kernel cgroups <a href="https://en.wikipedia.org/wiki/Cgroups" data-type="URL" data-id="https://en.wikipedia.org/wiki/Cgroups" target="_blank" rel="noreferrer noopener">here</a>.</p>
+
+
+
+<h2 class="wp-block-heading">Portability</h2>
+
+
+
+<p>Containers provide a really effective means of packaging applications for distribution and hosting. If you have ever managed traditional bare metal or virtual machine based servers back in the day, you have almost certainly ran into scenarios where you were trying to deploy multiple applications to the same machine only to find out the hard way that the applications depend on different versions of a shared package. A good example of this would be a web application that requires a newer version of a language interpreter like PHP but the other application might be fairly outdated and require a much older version to work. This can be a real PITA to make work on the same machine in a clean way that doesn&#8217;t make maintaining ongoing updates a real nightmare.</p>
+
+
+
+<p>Containers solve this problem by creating an isolated environment for each process as desired which means you can now run an arbitrary amount of applications on the same host machine, all requiring a different version of a common dependency without any concern. Furthermore, this design also isolates the package updates of one packaged application from another that might be loosely coupled together. An example of this could be a web application that also has a separate application to provide an API.</p>
+
+
+
+<h2 class="wp-block-heading">Deployment</h2>
+
+
+
+<p>Another great thing that containers solve is the ability to quickly roll out additional copies of an application for testing or updates. Since every container can maintain it&#8217;s own entire set of dependencies, this means you can create multiple copies of the same application with different versions of dependencies installed. This is incredibly useful for mission critical processes that demand zero downtime. With this model, you can easily roll out a copy of an application with the latest updates for dependencies to test.</p>
+
+
+
+<p>I know what some of you are thinking at this point, &#8220;I could do that before with virtual machines through the use of snapshots and cloning.&#8221; You are correct about that but the speed and efficiency at which that can be done has been rivaled by the equivalent process in containers. Depending on the operational requirements of the application, you may not be able to keep both versions actively running side by side thus forcing you to do a form of fast swapping. This process becomes much slower if you&#8217;re dealing in the speed of VM snapshot restoration or rebooting.</p>
+
+
+
+<p>With containers, since you don&#8217;t have the time it takes to load the entire kernel and all supporting startup processes, you can move immediately to starting the actual primary process from the moment you say go. This is great if you have a scenario where a database is too big to run multiple copies for testing but an application that relies on that database would be destructive if two copies were using the same database instance (such as network  monitoring for example).</p>
+
+
+
+<h2 class="wp-block-heading">Scalability</h2>
+
+
+
+<p>Since the general design intention of a container is to one a single primary process such as a database server, an HTTP server, or maybe an SSH server as examples, this by design lends itself very well to the modern micro-service architecture that has taken hold in the application development world. A micro-service architecture is seemingly the most ideal design choice for most environments today because not only does it better isolate application component failures thereby limiting the effects of an outage, it also makes it much easier to scale applications more efficiently.</p>
+
+
+
+<p>Consider the design of the original eBay architecture. It followed the old school principal of monolithic design where you had one ginormous application that couldn&#8217;t be ran on multiple machines very well. This meant that as user demand grew, the underlying hardware running the application had to grow as well. At different points in history, this quickly became a problem because hardware has only ever been so powerful at any given time. If the best CPU at the time only offered 8 cores and the best motherboards could only handle 4 CPUs, then you have quickly found a limit to just how far that application can scale. This scenario illustrated one of the many great examples why micro-service architecture had to become the new approach moving forward. It was the only realistic way to eventually to to the scale that some websites today run at such as eBay, Facebook, Twitter, Instagram, etc&#8230;</p>
+
+
+
+<p>Possibly to your surprise, just about every major tech company today is making use of not only micro-service architecture but containerization as well. Examples include all of the major video streaming companies like Netflix, Hulu, Amazon Prime, etc.. as well as some of the biggest telecommunications providers in the world like Comcast, Cox, Charter, Verizon, AT&amp;T, etc&#8230; This new model of application design has really changed the landscape for efficient scalability.</p>
+
+
+
+<p>Even before containers, large organizations would use automation to grow and shrink the underlying resources of applications to handle spikes and valleys in user demand. Imagine having an application that would see a 5000% traffic growth at roughly the same time every day on a daily basis. Think about people returning home from work and turning on the latest episode of a popular series that just came out that day. Before containers, this meant that a lot of virtual machines would be created and/or started simultaneously to meet the predictable demand of a hungry user base. Starting that many VMs at one time can really put some strain on infrastructure, especially the underlying storage systems. Containers have really curved that strain widely since there is far less required to be retrieved from an underlying storage system during process start-up. This means creating 1,000 copies of a process is far less demanding on physical hardware than creating 1,000 VMs to run that single process.</p>
+
+
+
+<h2 class="wp-block-heading">Networking</h2>
+
+
+
+<p>The advent of containerization also provided the ability to take new, more unique approaches to solving a number of networking challenges that many large scale applications like Facebook and others have encountered inside of data centers. You can run all the fiber and switches you want, but depending on how your application is designed, you can still create massive traffic jams across data center networks. Since container orchestration quickly became much more advanced to meet the growing engineering demands of containerized applications, this paved the road for some new approaches to mitigating these types of traffic jams.</p>
+
+
+
+<p>Traditionally, it wouldn&#8217;t be uncommon to see data center designs that kept all of the HTTP services on one cluster of servers and all of the database services on a totally different set of servers. Naturally, this meant there often had to be a very hefty fiber optic and switch network to interconnect the clusters. This can quickly create other scalability issues where throwing money at the problem simply won&#8217;t resolve the issues.</p>
+
+
+
+<p>Enter a more modern approach where now a company might use advanced container orchestration to ensure that anytime a copy of an HTTP service is deployed to a physical host, that a copy of the supporting database server also gets deployed on the same physical machine along side the HTTP service. This means that requests served by the HTTP service no longer require the network communication to the database service to leave the physical machine and traverse an expensive and hard to maintain fiber optic network.</p>
+
+
+
+<h2 class="wp-block-heading">In Closing</h2>
+
+
+
+<p>I could go on with many other use case examples and detailed explanations but I imagine you get the general idea. Just as when the advent of virtual machines happened and took the computing world by storm, containers have done the same thing thereby taking us all on another huge leap into the future of large scale computing. I realize that many of my examples were based on large scale deployments of huge applications but it&#8217;s important to remember that many of these same benefits translate to smaller organizations as well. After all, automation is automation no matter what the scale. If a human doesn&#8217;t have to handle the task or a task is less error prone, then there is still a quantifiable value proposition.</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/introduction-to-containerized-services/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+		<item>
+		<title>Automatic Virtual Host Setup Using Nginx Ingress Controller On Kubernetes</title>
+		<link>/compute-stacks/automatic-virtual-host-setup-using-nginx-ingress-controller-on-kubernetes/</link>
+					<comments>/compute-stacks/automatic-virtual-host-setup-using-nginx-ingress-controller-on-kubernetes/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Mon, 28 Mar 2022 19:12:21 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[automatic]]></category>
+		<category><![CDATA[controller]]></category>
+		<category><![CDATA[ingress]]></category>
+		<category><![CDATA[k8s]]></category>
+		<category><![CDATA[kubernetes]]></category>
+		<category><![CDATA[nginx]]></category>
+		<category><![CDATA[virtual hosts]]></category>
+		<guid isPermaLink="false">https://azorian.solutions/?p=571</guid>
+
+					<description><![CDATA[A common scenario that you may face in your compute environment is the need to deploy various web applications, websites, APIs, and other such services that you will likely want to associate domain names to instead of just using IP addresses for everything. There are a plethora of different ways to achieve these types of [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>A common scenario that you may face in your compute environment is the need to deploy various web applications, websites, APIs, and other such services that you will likely want to associate domain names to instead of just using IP addresses for everything. There are a plethora of different ways to achieve these types of deployments in Kubernetes, but for the sake of simplicity and automation, I will present one route that takes a lot of the complexity out of achieving these goals.</p>
+
+
+
+<p>Enter the Nginx Ingress Controller for Kubernetes. This is not to be confused for the Kubernetes Ingress Controller that also uses Nginx. The outcomes provided by the two are very similar but project goals different. For this tutorial and many others on this blog, I will focus on the former of the two as that is what I run in my production environments. It is also worth mentioning that this option paves the road for a very useful integration that solves another need that is just as common as the need for simple virtual hosts. That integration would be automatic SSL certificate registration and deployment using ACME providers like LetsEncrypt. I have also provided a tutorial on this blog to cover the implementation of that solution as well.</p>
+
+
+
+<p>This tutorial is pretty simple so let&#8217;s jump right into it. Working from a kubectl enabled environment for your Kubernetes cluster, execute the following commands:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>git clone -b v2.1.1 https://github.com/nginxinc/kubernetes-ingress/
+cd kubernetes-ingress/deployments</code></pre>
+
+
+
+<p>The first change you should make is to apply the role based access control (RBAC) configurations to the Kubernetes environment by executing the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl apply -f common/ns-and-sa.yaml -f rbac/rbac.yaml</code></pre>
+
+
+
+<p>Now you can setup all of the definitions and dependencies required to run the Nginx Ingress Controller by executing the following commands:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl apply -f common/default-server-secret.yaml
+kubectl apply -f common/nginx-config.yaml
+kubectl apply -f common/ingress-class.yaml
+kubectl apply -f common/crds/k8s.nginx.org_virtualservers.yaml
+kubectl apply -f common/crds/k8s.nginx.org_virtualserverroutes.yaml
+kubectl apply -f common/crds/k8s.nginx.org_transportservers.yaml
+kubectl apply -f common/crds/k8s.nginx.org_policies.yaml
+kubectl apply -f common/crds/k8s.nginx.org_globalconfigurations.yaml</code></pre>
+
+
+
+<p>Now you&#8217;re ready to deploy the actual ingress controller. There are two general approaches for deployment which are DaemonSets and Deployments. In this tutorial, the latter will be used as it is likely most sufficient for your environment. Execute the following command:L</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl apply -f deployment/nginx-ingress.yaml</code></pre>
+
+
+
+<p>Now for the final step which is to expose access to the ingress controller via a Kubernetes service. Let&#8217;s take a look at the default service configuration which can be found in the service/loadbalancer.yaml file:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ingress
+  namespace: nginx-ingress
+spec:
+  externalTrafficPolicy: Local
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+  selector:
+    app: nginx-ingress</code></pre>
+
+
+
+<p>This file will work as is to get you started but I will assume you probably want to expose some of the services connected to the ingress controller via a public IP address in your network. If you do not need to expose the ingress controller via a public IP address then you may skip the next section and jump to the last part of this step.</p>
+
+
+
+<p>This approach assumes that you have connected your Kubernetes environment into your network via BGP with Calico CNI. Take a look at the modified service/loadbalancer.yaml file below to see how easy it is to add one or more additional IP addresses to the controller which will be automatically announced as a /32 route via BGP. Keep in mind, the IP addresses used here must be defined in your Calico CNI BGP configuration under the &#8220;serviceExternalIPs&#8221; section or the address assignments <strong>will not be announced</strong> via BGP.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ingress
+  namespace: nginx-ingress
+spec:
+  externalTrafficPolicy: Local
+  type: LoadBalancer
+<strong>  externalIPs:
+  - 123.45.54.321</strong>
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+  selector:
+    app: nginx-ingress</code></pre>
+
+
+
+<p>Once you have the service/loadbalancer.yaml file modified to your requirements, execute the following command to create the service:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl apply -f service/loadbalancer.yaml</code></pre>
+
+
+
+<p>Now that this has been setup, you can easily connect the Kubernetes services you deploy to the ingress controller by defining a configuration object in your application namespace similar to the following:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: http-lb
+  namespace: website-namespace
+spec:
+  rules:
+  - host: your.website.domain
+    http:
+      paths:
+      - pathType: Prefix
+        path: /
+        backend:
+          service:
+            name: http-svc
+            port:
+              number: 80</code></pre>
+
+
+
+<p>That&#8217;s it! Hopefully that was as simple as I made it out to be!</p>
+
+
+
+<p>I recommend you check out <a href="/compute-stacks/automatic-letsencrypt-ssl-registration-for-kubernetes-using-cert-manager/" data-type="URL" data-id="/compute-stacks/automatic-letsencrypt-ssl-registration-for-kubernetes-using-cert-manager/">this post</a> next to take your Kubernetes deployment to the next level.</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/automatic-virtual-host-setup-using-nginx-ingress-controller-on-kubernetes/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+		<item>
+		<title>Automatic LetsEncrypt SSL Registration for Kubernetes Using Cert-Manager</title>
+		<link>/compute-stacks/automatic-letsencrypt-ssl-registration-for-kubernetes-using-cert-manager/</link>
+					<comments>/compute-stacks/automatic-letsencrypt-ssl-registration-for-kubernetes-using-cert-manager/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Mon, 28 Mar 2022 18:15:54 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[acme]]></category>
+		<category><![CDATA[automatic ssl]]></category>
+		<category><![CDATA[automation]]></category>
+		<category><![CDATA[certificate registration]]></category>
+		<category><![CDATA[ingress controller]]></category>
+		<category><![CDATA[k8s]]></category>
+		<category><![CDATA[kubernetes]]></category>
+		<category><![CDATA[letsencrypt]]></category>
+		<category><![CDATA[ssl]]></category>
+		<category><![CDATA[ssl certificates]]></category>
+		<guid isPermaLink="false">https://azorian.solutions/?p=580</guid>
+
+					<description><![CDATA[I don&#8217;t think many will argue that the status quo of security on the Internet today dictates that the use of SSL for web services is a must. This used to be quite a painful and expensive standard to maintain for many as SSL registration isn&#8217;t exactly cheap and requires ongoing maintenance of SSL certificates [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>I don&#8217;t think many will argue that the status quo of security on the Internet today dictates that the use of SSL for web services is a must. This used to be quite a painful and expensive standard to maintain for many as SSL registration isn&#8217;t exactly cheap and requires ongoing maintenance of SSL certificates as they reach their expiration. Thankfully, in an effort to create a more secure Internet, there has been an advent of free ACME based SSL registration services such as LetsEncrypt. This project even took a lot of the headache out of the process by providing facilities to handle automatic renewal of these certificates since they are much shorter lived (3 months) than the traditional SSL certificates of one or more years. This is great until you start working with more modern environments that use container orchestration as opposed to the traditional bare metal or virtual machine based servers.</p>
+
+
+
+<p>Enter Cert-Manager for Kubernetes. This is one of a number of projects that have provided a simple and reliable solution for bridging the gap in automation left by this transition. You should find that this tutorial will be rather short and sweet to achieving this goal. You do however need to make sure you have already implemented a proper ingress controller as this is a key dependency of making all of this work. If you haven&#8217;t done so yet, check out my tutorial on deploying the Nginx Ingress Controller for Kubernetes as that will get you where you need to be to make use of this.</p>
+
+
+
+<p>Let&#8217;s jump right into it as this will go very quickly. Execute the following commands in a kubectl enabled environment to install Cert-Manager to your Kubernetes environment:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>cm_version=$(curl --silent "https://api.github.com/repos/cert-manager/cert-manager/releases/latest" | grep '"tag_name":' | sed -E 's/.*"(&#91;^"]+)".*/\1/')
+
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/$cm_version/cert-manager.yaml</code></pre>
+
+
+
+<p>Now you need to create some ACME providers for Cert-Manager to use for SSL registration. For this tutorial, I will be focusing on the use of LetsEncrypt given it&#8217;s popularity. Execute the following commands after updating the &#8220;cm_email&#8221; value to an email address that you would like to receive LetsEncrypt expiration notifications at:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>cm_email=your-alias@your-company.domain
+
+echo 'apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    email: '"$cm_email"'
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-production-account-key
+    solvers:
+    - http01:
+        ingress:
+          class: nginx' | kubectl apply -f -
+
+echo 'apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    email: '"$cm_email"'
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+    - http01:
+        ingress:
+          class: nginx' | kubectl apply -f -</code></pre>
+
+
+
+<p>That&#8217;s it! Now you&#8217;re ready to start deploying services and ingress controllers that receive automatic SSL registration. The previous commands will setup configuration for both the LetsEncrypt production and staging environments so you can test configurations before pounding the production instance with bad requests.</p>
+
+
+
+<p>Let&#8217;s take a look at what a simple scenario using the Cert-Manager looks like to obtain a temporary SSL certificate from the LetsEncrypt <strong>staging</strong> environment. If you want to setup an ingress object to use the LetsEncrypt production environment, you just need to change the &#8220;letsencrypt-staging&#8221; string below to &#8220;letsencrypt&#8221; and update the object. I recommend you start out always using the staging environment first until you get the hang of the whole process through repetition.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: http-lb
+  namespace: website-namespace
+  annotations:
+    kubernetes.io/tls-acme: "true"
+    cert-manager.io/cluster-issuer: "<strong>letsencrypt-staging</strong>"
+    cert-manager.io/issue-temporary-certificate: "true"
+    acme.cert-manager.io/http01-edit-in-place: "true"
+spec:
+  rules:
+  - host: <strong>your.website.domain</strong>
+    http:
+      paths:
+      - pathType: Prefix
+        path: /
+        backend:
+          service:
+            name: http-svc
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - <strong>your.website.domain</strong>
+    secretName: http-lb-cert</code></pre>
+
+
+
+<p>It&#8217;s very important to remember that you need to have the DNS configuration complete and propagated before pushing one of these configurations to the Kubernetes environment. If you don&#8217;t then there is a good chance you will cause a negative query hit for the domain you&#8217;re trying to register SSL certificates for and that will take longer to clear out of the internal DNS cache. Thankfully, Cert-Manager has proper local verification features that will prevent the request from going to LetsEncrypt before all pieces are in place but that will not mitigate the aforementioned delay should you get ahead of yourself.</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/automatic-letsencrypt-ssl-registration-for-kubernetes-using-cert-manager/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+		<item>
+		<title>Connecting Kubernetes To A Ceph Cluster Using Rook</title>
+		<link>/compute-stacks/connecting-kubernetes-to-a-ceph-cluster-using-rook/</link>
+					<comments>/compute-stacks/connecting-kubernetes-to-a-ceph-cluster-using-rook/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Mon, 28 Mar 2022 16:30:28 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[block]]></category>
+		<category><![CDATA[ceph]]></category>
+		<category><![CDATA[ceph fs]]></category>
+		<category><![CDATA[cluster]]></category>
+		<category><![CDATA[external storage]]></category>
+		<category><![CDATA[file system]]></category>
+		<category><![CDATA[k8s]]></category>
+		<category><![CDATA[kubernetes]]></category>
+		<category><![CDATA[network storage]]></category>
+		<category><![CDATA[raw block device]]></category>
+		<category><![CDATA[rbd]]></category>
+		<category><![CDATA[storage]]></category>
+		<category><![CDATA[storage class]]></category>
+		<guid isPermaLink="false">https://azorian.solutions/?p=543</guid>
+
+					<description><![CDATA[Using Kubernetes for container orchestration is great but if you are going to scale our deployment into a multi-node cluster, you will likely find a new challenge quickly. Using local storage for your containers will quickly break the value of orchestration as your containers change nodes from time to time. This is where network based [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>Using Kubernetes for container orchestration is great but if you are going to scale our deployment into a multi-node cluster, you will likely find a new challenge quickly. Using local storage for your containers will quickly break the value of orchestration as your containers change nodes from time to time. This is where network based file storage systems become very valuable when used in-conjunction with a Kubernetes cluster. There are numerous different network file storage systems that are readily available for integration into Kubernetes. For this tutorial, I am going to focus on Ceph as it is often found in the on-premises environments that my tutorials are focused towards.</p>
+
+
+
+<p>Ceph offers three types of storage that can all be used in Kubernetes which are object storage (rados), block storage (RBD), and file systems (Ceph FS). This tutorial will focus on the latter two as that is all that is needed to hit the ground running with a number of common scenarios. It&#8217;s also worth mentioning that setting up the Ceph object storage system rados is a fairly intensive process that would at least justify it&#8217;s own blog post. You are probably already familiar with Ceph&#8217;s object storage system rados though as it&#8217;s a cross-compatible equivalent of Amazon Web Service&#8217;s S3 product. Anywhere you can use AWS&#8217;s S3 for storage, you can alternatively use Ceph&#8217;s rados gateway to achieve the same outcome.</p>
+
+
+
+<p>There are a number of different ways to connect a Kubernetes cluster to Ceph to achieve network based data storage but I will be focusing on a method that uses Rook. This method seems to be the most popular choice currently for ease of use and efficiency. Before you get started, you will need a command shell in an environment that has kubectl available with the appropriate configuration to allow administrative access to the cluster you wish to connect to Ceph. You will also need administrative access to the Ceph cluster which you intend to connect to the Kubernetes cluster. This tutorial will focus on using CLI based access to Ceph in order to complete the steps but if you know what you&#8217;re doing, you can achieve some of the same goals using a GUI based approach such as the controls provided in Proxmox Virtualization Environment.</p>
+
+
+
+<p>I have not widely tested this implementation with various combinations of Ceph and Rook but you should be aware there is a history of specific releases having known issues that require some manual intervention. My test case is based off of a Ceph 16.2.7 deployment running on top of Proxmox Virtualization Environment 7.1-7 with Rook version 1.8.1.</p>
+
+
+
+<p>Let&#8217;s start by gathering some data from the Ceph environment that will be needed to connect Kubernetes to the Ceph environment. Execute the following commands in the Ceph environment with a user that has the appropriate permissions to access sensitive Ceph configuration data (such as root) and then copy the output so that it can be executed in your Kubernetes environment:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>ROOK_EXTERNAL_FSID=$(ceph fsid)
+
+ROOK_EXTERNAL_CEPH_MON_DATA=$(ceph mon dump -f json 2&gt;/dev/null|jq --raw-output .mons&#91;0].name)=$(ceph mon dump -f json 2&gt;/dev/null|jq --raw-output .mons&#91;0].public_addrs.addrvec&#91;0].addr)
+
+ROOK_EXTERNAL_ADMIN_SECRET=$(ceph auth get-key client.admin)
+
+clear
+echo 'export NAMESPACE=rook-ceph-external'
+echo 'export ROOK_EXTERNAL_FSID='"$ROOK_EXTERNAL_FSID"
+echo 'export ROOK_EXTERNAL_CEPH_MON_DATA='"$ROOK_EXTERNAL_CEPH_MON_DATA"
+echo 'export ROOK_EXTERNAL_ADMIN_SECRET='"$ROOK_EXTERNAL_ADMIN_SECRET"</code></pre>
+
+
+
+<p>This should produce a result similar to the following:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>export NAMESPACE=rook-ceph-external
+export ROOK_EXTERNAL_FSID=XXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+export ROOK_EXTERNAL_CEPH_MON_DATA=NODE_HOSTNAME=000.000.000.000:3300
+export ROOK_EXTERNAL_ADMIN_SECRET=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</code></pre>
+
+
+
+<p>Copy all four of those lines and stash them in a text file for use later in this tutorial. Now you need to grab a copy of the Rook project files so execute the following commands in your kubectl enabled environment:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>git clone -b v1.8.1 https://github.com/rook/rook.git
+cd rook/deploy/examples</code></pre>
+
+
+
+<p>Now it&#8217;s time to load the Kubernetes cluster with all of the Rook / Ceph dependencies needed to connect the two environments. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl create -f crds.yaml -f common.yaml -f operator.yaml -f common-external.yaml</code></pre>
+
+
+
+<p>You can check that all is well and completed by running the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl get pods -n rook-ceph</code></pre>
+
+
+
+<p>This command should yield an output similar to the following:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>NAME                                 READY   STATUS    RESTARTS   AGE
+rook-ceph-operator-b89545b4f-psh7j   1/1     Running   0          2m56s</code></pre>
+
+
+
+<p>Now it&#8217;s time to setup some security and configuration related objects in Kubernetes to support the connection. Make a copy of the command output from the earlier step that you stashed away and execute those four commands in your Kubernetes environment.</p>
+
+
+
+<p>The rest of this step is pretty easy as Rook has provided a bash script to do the work for you by using the values set in the environment variables from the previous step. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>bash import-external-cluster.sh</code></pre>
+
+
+
+<p>This next step shouldn&#8217;t be necessary but there is still a bit of a lingering oversight in the Rook&#8217;s implementation design that results in an issue where a blank Ceph username and secret value are stored into the associated Kubernetes configuration. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl edit secret rook-ceph-mon -n rook-ceph-external</code></pre>
+
+
+
+<p>This should launch a VIM style editor in the CLI with some YAML formatted data visible. You need to delete the following two lines from this view and then save changes and exit:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>  ceph-secret: ""
+  ceph-username: ""</code></pre>
+
+
+
+<p>Now you&#8217;re ready to actually connect the Ceph environment with Kubernetes by applying a YAML configuration that contains the CephCluster object. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl apply -f cluster-external.yaml</code></pre>
+
+
+
+<p>This step may take some time to fully complete depending on your environment so you can run the following command to watch for the status:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>watch -n 2 kubectl get cephcluster -n rook-ceph-external</code></pre>
+
+
+
+<p>When everything is ready and all went well, you should see the &#8220;Phase&#8221; column value as &#8220;Connected&#8221;.</p>
+
+
+
+<p>Now let&#8217;s move on to getting Ceph configured with a new Ceph file system to support the Kubernetes cluster. Of course, you can re-use an existing one if you like to conserve growth capacity given that each Ceph file system requires it&#8217;s own metadata server (MDS) and only one MDS can be ran on a Ceph node. Be aware though, if you re-use the same Ceph file system you may have setup for use in a PVE cluster, you need to be extra cautious with actions you take in the future as to not accidentally damage or destroy a mission critical storage system for your PVE cluster.</p>
+
+
+
+<p>Update the following list of commands to reflect the name of the CephFS  you would like to create or use the appropriate names of an existing CephFS that you would like to re-use for your Kubernetes environment. Once you have updated the list of commands, execute them in your kubectl environment. If you are creating a new CephFS instead of re-using an existing one, execute these commands in your Ceph environment as well.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>cephfs_name=k8s-cephfs
+cephfs_metadata_pool=k8s-cephfs_metadata
+cephfs_data_pool=k8s-cephfs_data</code></pre>
+
+
+
+<p>If you are creating a new CephFS instead of re-using an existing one, execute the following commands in your Ceph environment:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>ceph osd pool create $cephfs_metadata_pool
+ceph osd pool create $cephfs_data_pool
+ceph fs new $cephfs_name $cephfs_metadata_pool $cephfs_data_pool</code></pre>
+
+
+
+<p>Now that you have a Ceph file system ready for use, it&#8217;s time to setup two storage classes in your Kubernetes environment to provide containers with both block and file system storage options. You need to update the storage class templates before you apply them to the Kubernetes environment by executing the following commands:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sed -i 's/clusterID\:\srook-ceph/clusterID\: rook-ceph-external/g' csi/rbd/storageclass.yaml
+sed -i 's/clusterID\:\srook-ceph/clusterID\: rook-ceph-external/g' csi/cephfs/storageclass.yaml
+sed -i 's/fsName\:\smyfs/fsName\: '"$cephfs_name"'/g' csi/cephfs/storageclass.yaml
+sed -i 's/pool\:\smyfs\-replicated/pool\: '"$cephfs_data_pool"'/g' csi/cephfs/storageclass.yaml
+sed -i 's/csi.storage.k8s.io\/provisioner-secret-namespace\:\srook-ceph/csi.storage.k8s.io\/provisioner-secret-namespace\: rook-ceph-external/g' csi/cephfs/storageclass.yaml
+sed -i 's/csi.storage.k8s.io\/controller-expand-secret-namespace\:\srook-ceph/csi.storage.k8s.io\/controller-expand-secret-namespace\: rook-ceph-external/g' csi/cephfs/storageclass.yaml
+sed -i 's/csi.storage.k8s.io\/node-stage-secret-namespace\:\srook-ceph/csi.storage.k8s.io\/node-stage-secret-namespace\: rook-ceph-external/g' csi/cephfs/storageclass.yaml</code></pre>
+
+
+
+<p>Now you can apply the storage class templates to the Kubernetes environment by executing the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl create -f csi/rbd/storageclass.yaml -f csi/cephfs/storageclass.yaml</code></pre>
+
+
+
+<p>The final step to this process is to set a default storage class for scenarios where a storage class is not specifically defined. I typically choose to use the RBD storage class as I most commonly use that. I use the CephFS storage class for scenarios where data needs to be consumed by more than one container simultaneously such as web application files in a high availability configuration. Execute the following command to set the default storage class to the new Ceph RBD option:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl patch storageclass rook-ceph-block -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'</code></pre>
+
+
+
+<p>That&#8217;s it! You&#8217;re now ready to start deploying containers that consume storage directly from your Ceph cluster.</p>
+
+
+
+<p>I recommend you check out <a href="/compute-stacks/automatic-virtual-host-setup-using-nginx-ingress-controller-on-kubernetes/" data-type="URL" data-id="/compute-stacks/automatic-virtual-host-setup-using-nginx-ingress-controller-on-kubernetes/">this post</a> next to take your Kubernetes deployment to the next level.</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/connecting-kubernetes-to-a-ceph-cluster-using-rook/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+		<item>
+		<title>Connecting Kubernetes To Your Network Using BGP</title>
+		<link>/compute-stacks/connecting-kubernetes-to-your-network-using-bgp/</link>
+					<comments>/compute-stacks/connecting-kubernetes-to-your-network-using-bgp/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Sun, 27 Mar 2022 17:11:31 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[asn]]></category>
+		<category><![CDATA[bgp]]></category>
+		<category><![CDATA[calico]]></category>
+		<category><![CDATA[cni]]></category>
+		<category><![CDATA[containerization]]></category>
+		<category><![CDATA[containers]]></category>
+		<category><![CDATA[k8s]]></category>
+		<category><![CDATA[kubectl]]></category>
+		<category><![CDATA[kubernetes]]></category>
+		<category><![CDATA[network]]></category>
+		<category><![CDATA[networking]]></category>
+		<category><![CDATA[peering]]></category>
+		<category><![CDATA[virtualization]]></category>
+		<guid isPermaLink="false">https://azorian.solutions/?p=534</guid>
+
+					<description><![CDATA[Having a Kubernetes cluster to run your network services is incredibly valuable for many organizations. However, the default configuration of a basic cluster using the Calico CNI isn&#8217;t really very ideal for simple automated deployment of services as ingress communications require some form of proxy running in the cluster. Many examples will reference uses of [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>Having a Kubernetes cluster to run your network services is incredibly valuable for many organizations. However, the default configuration of a basic cluster using the Calico CNI isn&#8217;t really very ideal for simple automated deployment of services as ingress communications require some form of proxy running in the cluster. Many examples will reference uses of the Kube-Proxy component to provide ingress communications. This approach isn&#8217;t very ideal in my opinion as it still requires a fair amount of manual configuration to expose services in the cluster to an external network. Calico CNI uses BGP peering between nodes by default which is great for achieving the highest performance and simplicity in your cluster networking. This approach does not encapsulate any layer 3 traffic on the wire so you can easily inspect your traffic for debugging purposes.</p>
+
+
+
+<p>Enter BGP peering for Kubernetes using Calico CNI. Using this method, you can have all of your Kubernetes nodes communicate directly with an external network router via BGP in order to distribute routes to your cluster services and pods. Once this has been setup, any services you configure (properly) in your cluster will become immediately accessible to your network as routes are injected immediately upon activation.</p>
+
+
+
+<p>In order to apply the YAML formatted configuration files needed to setup BGP peering, you will need to have the Calico CNI control script installed in an environment that has proper permissions to manage the cluster. If you used the tutorial I provided in this blog for deploying Kubernetes, then this control script will have already been installed to each of your control plane nodes with the alias &#8220;kubectl-calico&#8221; and &#8220;calicoctl&#8221; so you&#8217;re already good to get started.</p>
+
+
+
+<p>If you setup your Kubernetes cluster some other way and do not currently have the Calico CNI control script installed, execute the following commands from an environment you have setup with kubectl for the cluster:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>export calico_version=$(curl --silent "https://api.github.com/repos/projectcalico/calico/releases/latest" | grep '"tag_name":' | sed -E 's/.*"(&#91;^"]+)".*/\1/')
+
+curl -A "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/81.0" -o kubectl-calico -L https://github.com/projectcalico/calico/releases/download/$calico_version/calicoctl-linux-amd64
+
+sudo chown root:root kubectl-calico
+sudo chmod +x kubectl-calico
+sudo mv kubectl-calico /usr/local/bin/
+sudo ln -s /usr/local/bin/kubectl-calico /usr/local/bin/calicoctl</code></pre>
+
+
+
+<p>At this point, you should be ready to start building the basic configuration file required to update the Calico CNI in order to establish BGP peering both with your network router and between nodes (route reflection). The example I provide in this tutorial will assume a very basic setup that assumes only one availability zone with a single top-of-rack (ToR) router. If you are building something with even better redundancy, it&#8217;s not complicated to pivot from this configuration to one that supports multiple availability zones and/or multiple ToR routers.</p>
+
+
+
+<p>Let&#8217;s start by applying some additional labels to all of your cluster nodes. These labels will be used to selectively enable route reflection via BGP. Execute the following command for each node in your cluster by updating the &#8220;HOSTNAME-HERE&#8221; string to match the hostname configured on each node. If you&#8217;re unsure of a node&#8217;s hostname, just execute the &#8220;hostname&#8221; command on that node.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl label node HOSTNAME-HERE route-reflector=true</code></pre>
+
+
+
+<p>After this has been completed, you can verify that everything looks correct by executing the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl get nodes --show-labels</code></pre>
+
+
+
+<p>Now let&#8217;s create a YAML formatted configuration file using the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>echo 'apiVersion: projectcalico.org/v3
+kind: BGPConfiguration
+metadata:
+  name: default
+spec:
+  logSeverityScreen: Info
+  nodeToNodeMeshEnabled: false
+  serviceClusterIPs:
+  - cidr: 10.10.10.0/23
+  serviceExternalIPs:
+  - cidr: 10.10.0.0/23
+  - cidr: 172.21.0.0/24
+  listenPort: 179
+---
+apiVersion: projectcalico.org/v3
+kind: BGPPeer
+metadata:
+  name: as-rtr1
+spec:
+  peerIP: 172.22.100.254
+  asNumber: 64512
+---
+apiVersion: projectcalico.org/v3
+kind: BGPPeer
+metadata:
+  name: as-node
+spec:
+  nodeSelector: all()
+  peerSelector: route-reflector == \'true\'' | tee /tmp/calico-bgp-configuration.yaml</code></pre>
+
+
+
+<p>Before you apply this configuration file to the cluster, some of the values will probably need modified to reflect appropriate settings that match your environment.</p>
+
+
+
+<p>The first item to update is the &#8220;serviceClusterIPs&#8221; entry. This should contain the CIDR that you configured for your service networks CIDR when initializing the cluster. If you followed my tutorial for deploying the Kubernetes cluster initially, all of this should have some familiarity already.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>  serviceClusterIPs:
+  - cidr: 10.10.10.0/23</code></pre>
+
+
+
+<p>The next item to update is the &#8220;serviceExternalIPs&#8221; entry. This should contain one or more CIDR entries to reflect any IP ranges that you intend to assign external service IP addresses from. For example, if you were going to deploy a DNS resolver for your network with an IP address of &#8220;10.10.0.1&#8221; then you would add a CIDR entry that includes that particular IP address such as &#8220;- cidr: 10.10.0.0/24&#8221;. IP addresses assigned to services from the ranges configured in this entry will be announced as individual /32 routes via BGP. This can be very useful if you need to cherry pick addresses in-between existing network allocations or if you need to temporarily &#8220;hijack&#8221; the traffic of another service on your network. A good example of this would be doing brief testing of new services that will replace existing deployments elsewhere on your network.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>  serviceExternalIPs:
+  - cidr: 10.10.0.0/23
+  - cidr: 172.21.0.0/24</code></pre>
+
+
+
+<p>Lastly, you may need to update the &#8220;peerIP&#8221; and &#8220;asNumber&#8221; entries to reflect the appropriate IP address and ASN of your ToR router that the cluster nodes should peer to.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>spec:
+  peerIP: 172.22.100.254
+  asNumber: 64512</code></pre>
+
+
+
+<p>Now that the configuration file is ready, it&#8217;s time to apply it to the cluster. Don&#8217;t forget that you will need to update your ToR router with the appropriate configuration to support BGP peering from each of your cluster nodes. The remote ASN used by the cluster nodes in this configuration will be the same as the ASN assigned in the previous section. To apply the configuration file to the cluster, execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>calicoctl apply -f /tmp/calico-bgp-configuration.yaml</code></pre>
+
+
+
+<p>At this point, if your ToR router has already been properly configured for BGP peering to your cluster nodes, you should see the peering relationships begin to establish after no more than one to two minutes typically, often quicker depending on your ToR router&#8217;s BGP configuration.</p>
+
+
+
+<p>That&#8217;s it! Wow, wasn&#8217;t that simple? Your Kubernetes cluster is now ready to begin announcing routes for any services and pods that you deploy. Once the relationships have been established, you should see some announcements to cover what is already deployed in the cluster. You will only see /32 announcements for services which have been configured with one or more external IP addresses. None of the default services deployed for a fresh cluster define this setting so don&#8217;t expect to see any out of the gate if you have not already configured something this way.</p>
+
+
+
+<p>There are some important details to note about this particular configuration (which can be alternated to work slightly differently). With this configuration, the node-to-node mesh networking is disabled which means that traffic for a given service IP will be routed only to the cluster nodes which are actively hosted an instance of the service. This is really handy if any of your services have a need to see the source IP of ingress traffic (such as for security purposes). Depending on your use case, this might not be the most ideal configuration though since additional external configuration would be required on your router to properly balance ingress traffic to each node hosting a service instance.</p>
+
+
+
+<p>When you use the node-to-node mesh networking feature, you can direct ingress traffic for your services to any mesh node in the cluster even if the service doesn&#8217;t have an instance running on a particular node. If the service isn&#8217;t running locally, the node will forward the traffic to a different node that is running the service. This approach is great if you want ingress traffic to be automatically balanced across all available nodes running a particular service. The caveat here is that when using mesh networking, your service may not always see the source IP address of the ingress traffic since the packets will be rewritten with a source IP address that reflects the cluster node that forwarded the traffic via the mesh network.</p>
+
+
+
+<p>I recommend you check out <a href="/compute-stacks/connecting-kubernetes-to-a-ceph-cluster-using-rook/" data-type="URL" data-id="/compute-stacks/connecting-kubernetes-to-a-ceph-cluster-using-rook/">this post</a> next to take your Kubernetes deployment to the next level.</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/connecting-kubernetes-to-your-network-using-bgp/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+		<item>
+		<title>Deploying Docker On Ubuntu 20.04</title>
+		<link>/compute-stacks/deploying-docker-on-ubuntu-20-04/</link>
+					<comments>/compute-stacks/deploying-docker-on-ubuntu-20-04/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Sun, 27 Mar 2022 14:39:17 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[containers]]></category>
+		<category><![CDATA[deployment]]></category>
+		<category><![CDATA[development]]></category>
+		<category><![CDATA[devops]]></category>
+		<category><![CDATA[docker]]></category>
+		<category><![CDATA[hosting]]></category>
+		<category><![CDATA[lxc]]></category>
+		<category><![CDATA[podman]]></category>
+		<category><![CDATA[virtual machines]]></category>
+		<category><![CDATA[virtualization]]></category>
+		<category><![CDATA[vms]]></category>
+		<guid isPermaLink="false">https://azorian.solutions/?p=508</guid>
+
+					<description><![CDATA[I&#8217;m sure you have heard a reference to containers in the midst of what is a container revolution essentially. Much like when machine virtualization really started to gain a footing, containers are off to a similar start. Given that the focus of this article is not to explain the origin or use cases for containers, [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>I&#8217;m sure you have heard a reference to containers in the midst of what is a container revolution essentially. Much like when machine virtualization really started to gain a footing, containers are off to a similar start. Given that the focus of this article is not to explain the origin or use cases for containers, I will spare a lot of detail explaining all the intricacies. I do however want to provide some brief examples of great use cases for containerized services.</p>
+
+
+
+<p>Have you ever been in a position where it was time to upgrade a production service to a new major version but are reluctant to make such a potentially impacting change to your production environment? I would say many have been here a time or two. Since machine virtualization came along, this challenge has somewhat been mitigated through the availability of great virtualization features like snapshots with timely rollbacks and other similar backup solutions. While this approach has proven to be very valuable, it can still yield some undesired down time during the upgrade and/or rollback process depending on your deployment configurations.</p>
+
+
+
+<p>Enter the containerization approach. Wouldn&#8217;t it be great if testing a new version of your chosen software was essentially nothing more than stopping one machine process and starting another? This is one of the many outcomes you can achieve when using containerized services. No longer is there a need to spin up a second (potentially resource hungry) virtual machine (VM) just to find out that you have more work to do before upgrading to a new package release for your software. This also applies to scenarios where a new software release goes south sometime after deployment and you need to quickly find your way back to a known working version.</p>
+
+
+
+<p>Not all containers are created equally though! The term container is a bit ambiguous since there are actually different types of containers. For example, if you&#8217;re a Proxmox Virtualization Environment (PVE) user, you may have noticed the containers feature. This refers to what are known as Linux Containers (LXC). These containers are not the same as the containers you might run with Docker or Podman. LXC is a great alternative to using more resource hungry VMs when you don&#8217;t necessarily need the features only found with traditional VMs. A Docker or Podman container is more akin to a convenient development and deployment solution for applications. Think of these container types as a great way to package an application with all of it&#8217;s environmental dependencies to make execution in different hosting environments much smoother. Since it is outside the scope of this article, I will not be going into the vast details regarding the differences between LXC and Docker/Podman containers.</p>
+
+
+
+<p>Since this article assumes you&#8217;re a container novice, I will be focusing on the simplest use cases to get you started with containers. This means I will focus on the use of Docker vs Podman even though both have many things in common including a nearly identical command line interface. There are many reasons why one might choose to use one container solution over the other but again, that is outside the scope of this article.</p>
+
+
+
+<h2 class="wp-block-heading">Installing Docker Engine</h2>
+
+
+
+<p>To get started with running Docker containers, you need to install the Docker Engine. This software package is readily available on many major Linux distributions including both Debian and RHEL based systems. I will be focusing on deployment in a Debian based environment (Ubuntu) in this article. Before beginning, I will assume you have a fresh, unmodified Ubuntu 18.04+ environment with an active shell session using a non-root user that has super user (sudo) privileges.</p>
+
+
+
+<p>The first step is to update your environment with all the latest updates for your current distribution release. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo apt update &amp;&amp; sudo apt dist-upgrade -y</code></pre>
+
+
+
+<p>The next step is to install a few dependencies that will simplify the remaining steps of the process by condensing some commands into more abstract, non-release specific commands. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo apt install -y ca-certificates curl gnupg lsb-release</code></pre>
+
+
+
+<p>Now you need to download and install the Docker repository GPG key to the local key ring. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg</code></pre>
+
+
+
+<p>Next you will need to add the appropriate APT package manager configuration so that your system is aware of the Docker repository. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>echo \
+  "deb &#91;arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list &gt; /dev/null</code></pre>
+
+
+
+<p>Now that the operating system is aware of the Docker repository, you need to update the local APT package cache to include all of the packages available from the Docker repository. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo apt update</code></pre>
+
+
+
+<p>Now it&#8217;s time to install the Docker Engine as well as containerd. Containerd is what ultimately runs the containers in this environment while the Docker Engine manages the setup and maintenance of those running containers. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo apt install -y docker-ce docker-ce-cli containerd.io</code></pre>
+
+
+
+<p>Now that the Docker Engine is installed, you should override the default network configuration to help ensure the internal networks used for the containers don&#8217;t overlap with your network infrastructure. This step isn&#8217;t fool-proof but will likely be sufficient for the typical production environment that doesn&#8217;t make use of the IANA 192.168.0.0/16 subnet. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>echo '{
+  "bip": "192.168.228.1/23",
+  "default-address-pools": &#91;{"base":"192.168.230.0/23","size":27}]
+}
+' | sudo tee /etc/docker/daemon.json &gt; /dev/null</code></pre>
+
+
+
+<p>Now the Docker Engine needs restarted in order for the networking changes to take effect. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo systemctl restart docker</code></pre>
+
+
+
+<p>Boom! You&#8217;re ready to start running Docker containers already! It really is that simple! Since you&#8217;re here reading this article, I will assume you&#8217;re not yet a CLI ninja though so you&#8217;ll probably want some sort of graphical user interface (GUI) for managing the containers on this new Docker host. There are some options out there but Portainer is by far the most heavily developed product on the market at the time of writing this article.</p>
+
+
+
+<h2 class="wp-block-heading">Installing Portainer GUI</h2>
+
+
+
+<p>If you would like to install the latest Portainer version to the server to manage it, execute the following commands:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>export portainer_version=$(curl --silent "https://api.github.com/repos/portainer/portainer/releases/latest" | grep '"tag_name":' | sed -E 's/.*"(&#91;^"]+)".*/\1/')
+
+sudo docker volume create portainer_data
+
+sudo docker run -d -p 8000:8000 -p 9443:9443 --name portainer \
+    --restart=always \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v portainer_data:/data \
+    portainer/portainer-ce:$portainer_version</code></pre>
+
+
+
+<p>If everything worked, this should result in a new GUI ready to use by navigating to https://YOUR-MACHINE-IP-OR-HOSTNAME:9443./ On your first visit, you will be prompted to create a new administrator account to use with the app. Now you&#8217;re really ready to hit the ground running with ninja speed as you start deploying containers!</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/deploying-docker-on-ubuntu-20-04/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+		<item>
+		<title>Deploying Kubernetes On Ubuntu 20.04</title>
+		<link>/compute-stacks/deploying-kubernetes-on-ubuntu-20-04/</link>
+					<comments>/compute-stacks/deploying-kubernetes-on-ubuntu-20-04/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Sun, 27 Mar 2022 14:28:47 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[calico]]></category>
+		<category><![CDATA[cluster]]></category>
+		<category><![CDATA[cni]]></category>
+		<category><![CDATA[containerization]]></category>
+		<category><![CDATA[containers]]></category>
+		<category><![CDATA[docker]]></category>
+		<category><![CDATA[k8s]]></category>
+		<category><![CDATA[kubeadm]]></category>
+		<category><![CDATA[kubectl]]></category>
+		<category><![CDATA[kubelet]]></category>
+		<category><![CDATA[kubernetes]]></category>
+		<category><![CDATA[orchestration]]></category>
+		<category><![CDATA[podman]]></category>
+		<category><![CDATA[pods]]></category>
+		<category><![CDATA[vm]]></category>
+		<guid isPermaLink="false">https://azorian.solutions/?p=515</guid>
+
+					<description><![CDATA[So you&#8217;re finally ready to take your use of containers to the next level with the premium standard of container orchestration but maybe like me, you aren&#8217;t a fan of Red Hat Enterprise Linux / openSUSE environments. No worries, there are some reasonably simple steps that will get you to a working Kubernetes cluster deployment [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>So you&#8217;re finally ready to take your use of containers to the next level with the premium standard of container orchestration but maybe like me, you aren&#8217;t a fan of Red Hat Enterprise Linux / openSUSE environments. No worries, there are some reasonably simple steps that will get you to a working Kubernetes cluster deployment on Ubuntu in almost no time at all.</p>
+
+
+
+<p>To get started, you need at least one clean Ubuntu 20.04 environment, ideally at least two Ubuntu 20.04 environments to separate your control plane and worker nodes. For high availability environments, you should have at least three control plane nodes and at least two worker nodes. You don&#8217;t have to create all the additional nodes at once as adding them later isn&#8217;t much of a chore. The instructions that follow will assume you&#8217;re working with at least two nodes, one for your control plane, and one for your workload. <strong>It is very important</strong> that every node you intend to join to the same cluster has a unique hostname configured. It does not matter if two nodes are located in different network search domains, their hostname must specifically be unique to the cluster.</p>
+
+
+
+<h2 class="wp-block-heading">Planning Cluster Configuration</h2>
+
+
+
+<p>Before you start executing commands, you need to get all your ducks in a row with a few pieces of configuration information. The following is an example of the configuration used in the Azorian Solutions production Kubernetes cluster:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>             Cluster Domain: k8s.azorian.solutions
+     Control Plane Endpoint: cp.k8s.azorian.solutions
+          Pod Networks CIDR: 10.255.0.0/16
+      Service Networks CIDR: 10.10.10.0/23
+            Kubelet Version: 1.22.0-00
+            Kubeadm Version: 1.22.0-00
+            Kubectl Version: 1.22.0-00</code></pre>
+
+
+
+<p>The first configuration item is the cluster domain. Think of this much like you would a network search domain although it isn&#8217;t necessarily used in the same way.</p>
+
+
+
+<p>The next configuration item is the control plane endpoint. This is typically a domain name containing an A record corresponding to the IP address of each control plane node that will operate in the cluster. Initially, this domain should only contain a single A record that points to the IP address of the first control plane node that you intend to initialize the Kubernetes cluster on. If you miss this detail during setup, it could lean to painful results forcing you to start the entire process all over again (assuming you don&#8217;t have great proficiency in Kubernetes clusters to fix it).</p>
+
+
+
+<p>Moving on, the pod networks CIDR should be a fairly large private network allocation as this will be carved up into many smaller networks for each pod that gets deployed to the cluster. Remember, this could easily equate to one network per container deployed depending on how you deploy your services so don&#8217;t get stingy on address space. This is not something that is easily changed after the fact. The allocation chosen here should not be your easiest to remember as you likely won&#8217;t spend much if any time directly interacting with the IP addresses that are assigned from these networks. It&#8217;s also important to remember that the addresses automatically assigned from this network are ephemeral in nature in accordance with the destruction and recreation of pods that happen automatically from time to time.</p>
+
+
+
+<p>Next up is the service networks CIDR. Until you get familiar with exactly how Kubernetes works, I recommend starting with a /23 private network as this will ensure you don&#8217;t likely end up in a situation where you run out of space from deploying services to the cluster. Services in Kubernetes are like a public facing gateway to your various pods (which contain one or more containers). You can think of a service similar to how you would think of a load balancer. It will receive communication requests to specific IP addresses and ports which are then automatically routed to any pods that have been linked to the service.</p>
+
+
+
+<p>Finally, you have your Kubelet, Kubeadm, and Kubectl versions. You can select any of the available Kubernetes release versions here. It is considered best practice for compatibility reasons to keep all three of these packages in sync with at least major and minor versions. If you know what you&#8217;re doing, you can install different versions of each but you may experience problems by doing so if there is a breaking change between two selected versions. Version 1.23 hasn&#8217;t been out long and I haven&#8217;t tested it so for this tutorial, we&#8217;ll stick with version 1.22.0-00 which is what I am running today.</p>
+
+
+
+<h2 class="wp-block-heading">Preparing The Nodes</h2>
+
+
+
+<p>Let&#8217;s start by running a number of commands to get each node of the Kubernetes cluster prepared for deployment. Begin by opening up a command shell to each of the nodes with a non-root user that has super user (sudo) privileges.</p>
+
+
+
+<p>First, you need to disable the use of swap partitions. Execute the following commands on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo sed -i 's/^\/swap/#\/swap/g' /etc/fstab
+sudo swapoff -a</code></pre>
+
+
+
+<p>Next, you need to update the OS to the latest packages for the current distribution. Execute the following commands on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo apt update
+sudo apt upgrade -y</code></pre>
+
+
+
+<p>Now it&#8217;s time to install some basic dependencies to support the remainder of the installation process. Execute the following command on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo apt install -y apt-transport-https ca-certificates curl gnupg lsb-release net-tools containerd</code></pre>
+
+
+
+<p>Now you need to load the &#8220;overlay&#8221; and &#8220;br_netfilter&#8221; Linux kernel modules. Execute the following commands on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo modprobe overlay
+sudo modprobe br_netfilter</code></pre>
+
+
+
+<p>The previous commands only load kernel modules temporarily. You need to add a configuration file to ensure that these modules are loaded after each machine reboot. Execute the following command on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>echo 'overlay
+br_netfilter' | sudo tee /etc/modules-load.d/k8s.conf &gt; /dev/null</code></pre>
+
+
+
+<p>Now you need to add a kernel configuration file to tweak three networking settings. Execute the following command on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>echo 'net.ipv4.ip_forward = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-ip6tables = 1' | sudo tee /etc/sysctl.d/99-k8s.conf &gt; /dev/null</code></pre>
+
+
+
+<p>The first of the three aforementioned settings instruct the kernel to accept and forward IP packets not intended for the host machine, but instead one or more of the guests running on the host. The second and third settings control whether or not packets passing through a Linux networking bridge are passed to iptables for processing.</p>
+
+
+
+<p>Now you need to instruct the kernel to load the new kernel configuration file to apply the changes. Execute the following command on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo sysctl --system</code></pre>
+
+
+
+<p>Now you need to install the GPG key for the Google APT repository that contains the Kubernetes packages you&#8217;ll need. Execute the following command on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg</code></pre>
+
+
+
+<p>Now you need to add a configuration file for the APT package manager to make the system aware of the Kubernetes package repository hosted by Google. Execute the following command on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>echo 'deb &#91;signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main' | sudo tee /etc/apt/sources.list.d/kubernetes.list &gt; /dev/null</code></pre>
+
+
+
+<p>Now you need to update APT&#8217;s package cache to download the latest package information from the Kubernetes repository. Execute the following command on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo apt update</code></pre>
+
+
+
+<p>Now you need to set some temporary environment variables that will be used during the Kubernetes package installation process. Execute the following commands on each node, taking care to update each variable with the appropriate versions that you chose for Kubelet, Kubeadm, and Kubectl at the beginning of this tutorial:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubelet_version=1.22.0-00
+kubeadm_version=1.22.0-00
+kubectl_version=1.22.0-00</code></pre>
+
+
+
+<p>Now you are finally ready to install the Kubernetes packages. Execute the following commands on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>KUBELET_EXTRA_ARGS='--feature-gates="AllAlpha=false,RunAsGroup=true"
+  --container-runtime=remote --cgroup-driver=systemd
+  --runtime-request-timeout=5m
+  --container-runtime-endpoint="unix:///var/run/containerd/containerd.sock"'
+
+sudo apt install -y --allow-change-held-packages \
+  kubelet=$kubelet_version kubeadm=$kubeadm_version \
+  kubectl=$kubectl_version kubernetes-cni</code></pre>
+
+
+
+<p>Now there is one final dependency to install which is the control script for the Calico CNI since this tutorial will be making use of Calico as the container networking interface (CNI). Execute the following commands on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>export calico_version=$(curl --silent "https://api.github.com/repos/projectcalico/calico/releases/latest" | grep '"tag_name":' | sed -E 's/.*"(&#91;^"]+)".*/\1/')
+
+curl -A "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/81.0" -o kubectl-calico -L https://github.com/projectcalico/calico/releases/download/$calico_version/calicoctl-linux-amd64
+
+sudo chown root:root kubectl-calico
+sudo chmod +x kubectl-calico
+sudo mv kubectl-calico /usr/local/bin/
+sudo ln -s /usr/local/bin/kubectl-calico /usr/local/bin/calicoctl</code></pre>
+
+
+
+<p>Alright, that completes the node preparation phase of the deployment! I promise the next phase will be much quicker.</p>
+
+
+
+<h2 class="wp-block-heading">Initializing The Cluster</h2>
+
+
+
+<p>It&#8217;s finally time to initialize the Kubernetes cluster now that you have all of the nodes in a prepared state. If you are running the nodes in virtualization environment like Proxmox or ESXI, you may want to consider doing a quick snapshot of each node just in case something doesn&#8217;t go right with the initialization process. This will give you a relatively simple way to revert the coming changes and try again without having to completely rebuild the cluster nodes all over again.</p>
+
+
+
+<p>Let&#8217;s start by setting some additional temporary environment variables to assist with building a cluster configuration file. Execute the following commands <strong>on the first control plane node only!</strong> Take care to update each  variable to the corresponding configuration value chosen at the beginning of this tutorial.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>cluster_domain=k8s.azorian.solutions
+control_plane_endpoint=cp.k8s.azorian.solutions
+pod_networks_cidr=10.255.0.0/16
+service_networks_cidr=10.10.10.0/23</code></pre>
+
+
+
+<p>Now you need to create a cluster initialization file in YAML format. Execute the following command <strong>on the first control plane node only!</strong></p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>echo 'kind: InitConfiguration
+apiVersion: kubeadm.k8s.io/v1beta2
+nodeRegistration:
+  criSocket: /var/run/containerd/containerd.sock
+---
+kind: ClusterConfiguration
+apiVersion: kubeadm.k8s.io/v1beta2
+controlPlaneEndpoint: '"$control_plane_endpoint"':6443
+networking:
+  dnsDomain: '"$cluster_domain"'
+  podSubnet: '"$pod_networks_cidr"'
+  serviceSubnet: '"$service_networks_cidr"'
+---
+kind: KubeletConfiguration
+apiVersion: kubelet.config.k8s.io/v1beta1
+cgroupDriver: systemd
+---
+kind: KubeProxyConfiguration
+apiVersion: kubeproxy.config.k8s.io/v1alpha1' | tee /tmp/kubeadm-config.yaml</code></pre>
+
+
+
+<p>Now you can finally initialize the first node of the cluster! Execute the following command <strong>on the first control plane node only!</strong></p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo kubeadm init --config /tmp/kubeadm-config.yaml --upload-certs</code></pre>
+
+
+
+<p>If all goes well with the cluster initialization, then the aforementioned command should produce some output that provides two different commands beginning with &#8220;kubeadm join&#8221; that you need to capture for use a little later in this tutorial.</p>
+
+
+
+<p>Now you need to copy the admin security configuration file of the cluster to the appropriate location in the current user&#8217;s home directory so that you can execute various cluster administration commands as the current user without the user of super user (sudo) privileges. Execute the following command <strong>on the first control plane node only!</strong></p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config</code></pre>
+
+
+
+<p>You now have a bare bones Kubernetes cluster! You aren&#8217;t done quiet yet though as this cluster doesn&#8217;t have any container networking interface. Read on.</p>
+
+
+
+<h2 class="wp-block-heading">Installing Calico CNI</h2>
+
+
+
+<p>This step should prove to be the easiest. Execute the following command <strong>on the first control plane node only!</strong></p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>curl https://docs.projectcalico.org/manifests/calico.yaml | kubectl apply -f -</code></pre>
+
+
+
+<p>Alright, now the cluster has a container network interface installed and is ready for use if you are only working with a single node. Otherwise, read on.</p>
+
+
+
+<h2 class="wp-block-heading">Initializing The Remaining Nodes</h2>
+
+
+
+<p>If you are setting up more than one node for your Kubernetes environment, then you need to execute the &#8220;kubeadm join&#8221; commands that you captured during cluster initialization in an earlier step. For each of the worker nodes you are going to join to the cluster, execute the shorter of the two commands (the one that <strong>does not contain</strong> the &#8211;control-plane parameter) on the node.</p>
+
+
+
+<p>If you are setting up more than one control plane nodes for your Kubernetes environment, then you need to execute the longer of the two commands (the one that <strong>does contain</strong> the &#8211;control-plane parameter) on each <strong>remaining</strong> control plane nodes. Additionally, for ease of operation, also execute the following commands on each of the <strong>additional</strong> control plane nodes:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config</code></pre>
+
+
+
+<p>There is one final step to ensure that the Kubernetes cluster is ready to start deploying components. Each node that will be handling workloads needs to have a Kubernetes worker role label attached. Run the following command from a control plane node <strong>for each worker node in the cluster</strong> taking care to substitute the &#8220;HOSTNAME-HERE&#8221; string with the node&#8217;s configured hostname. If you aren&#8217;t sure of the node&#8217;s hostname, you can determine this by executing the &#8220;hostname&#8221; command on the node in question.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl label node HOSTNAME-HERE node-role.kubernetes.io/worker=worker</code></pre>
+
+
+
+<p>That&#8217;s it! You now have an operational Kubernetes cluster environment. I don&#8217;t want to toot your horn, but you&#8217;re kind of a big deal now.</p>
+
+
+
+<p>I recommend you check out <a href="/compute-stacks/connecting-kubernetes-to-your-network-using-bgp/" data-type="URL" data-id="/compute-stacks/connecting-kubernetes-to-your-network-using-bgp/">this post</a> next to take your Kubernetes deployment to the next level.</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/deploying-kubernetes-on-ubuntu-20-04/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+	</channel>
+</rss>

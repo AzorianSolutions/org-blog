@@ -1,0 +1,496 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>ceph &#8211; Azorian Solutions</title>
+	<atom:link href="/tag/ceph/feed/" rel="self" type="application/rss+xml" />
+	<link>/</link>
+	<description>Elucidation of the intricate</description>
+	<lastBuildDate>Sat, 05 Nov 2022 21:50:15 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>
+	hourly	</sy:updatePeriod>
+	<sy:updateFrequency>
+	1	</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=6.4.1</generator>
+
+<image>
+	<url>/wp-content/uploads/2022/03/cropped-ms-icon-310x310-1-150x150.png</url>
+	<title>ceph &#8211; Azorian Solutions</title>
+	<link>/</link>
+	<width>32</width>
+	<height>32</height>
+</image> 
+	<item>
+		<title>Connecting Debian / Ubuntu Virtual Machines To Ceph For Network Storage</title>
+		<link>/compute-stacks/connecting-debian-ubuntu-virtual-machines-to-ceph-for-network-storage/</link>
+					<comments>/compute-stacks/connecting-debian-ubuntu-virtual-machines-to-ceph-for-network-storage/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Sat, 05 Nov 2022 21:50:11 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[ceph]]></category>
+		<category><![CDATA[ceph-fs]]></category>
+		<category><![CDATA[container]]></category>
+		<category><![CDATA[debian]]></category>
+		<category><![CDATA[linux]]></category>
+		<category><![CDATA[mount]]></category>
+		<category><![CDATA[network]]></category>
+		<category><![CDATA[nfs]]></category>
+		<category><![CDATA[storage]]></category>
+		<category><![CDATA[ubuntu]]></category>
+		<category><![CDATA[virtual-machine]]></category>
+		<category><![CDATA[vm]]></category>
+		<guid isPermaLink="false">/?p=650</guid>
+
+					<description><![CDATA[When it comes to network accessible storage in compute stacks, there&#8217;s no shortage of use cases. Whether you&#8217;re deploying multi-homed services that share common files or you just need the increased performance offered by a network file system, Ceph is a great tool for building cost-effective, hyper-converged storage solutions. This tutorial should give you a [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>When it comes to network accessible storage in compute stacks, there&#8217;s no shortage of use cases. Whether you&#8217;re deploying multi-homed services that share common files or you just need the increased performance offered by a network file system, Ceph is a great tool for building cost-effective, hyper-converged storage solutions. This tutorial should give you a very easy start in utilizing Ceph to provide network shares for your virtual machines that operate like native storage.</p>
+
+
+
+<h2 class="wp-block-heading">Ceph Configuration</h2>
+
+
+
+<p>The first step to this process involves configuring Ceph and extracting relevant information needed to setup your virtual machine client. Open a command shell to one of the hosts running Ceph and elevate your access to a user that has permissions to execute Ceph configuration commands.</p>
+
+
+
+<p>Once you have an active command shell to the Ceph server, copy and paste the following script block into the terminal and then execute it with a return as required. This will install the APT package &#8220;jq&#8221; which is used for extracting some of the configuration settings.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>(
+sudo apt install -y jq
+
+FS_NAME_DEF="cephfs"
+FS_PATH_DEF="/"
+FS_PERM_DEF="rw"
+CLIENT_NAME_DEF="vm-client"
+FS_NAME=""
+FS_PATH=""
+FS_PERM=""
+CLIENT_NAME=""
+
+get_fs_name () {
+  clear
+  echo 'Enter the name of the Ceph file system you wish to use and then press return &#91;'"$FS_NAME_DEF"']:'
+  read FS_NAME
+  FS_NAME=$(echo "$FS_NAME" | xargs)
+  if &#91;&#91; ${#FS_NAME} -eq 0 ]]; then
+    FS_NAME="$FS_NAME_DEF"
+  fi
+}
+
+get_fs_path () {
+  clear
+  echo 'Enter the absolute path within the Ceph file system you wish to use and then press return &#91;'"$FS_PATH_DEF"']:'
+  read FS_PATH
+  FS_PATH=$(echo "$FS_PATH" | xargs)
+  if &#91;&#91; ${#FS_PATH} -eq 0 ]]; then
+    FS_PATH="$FS_PATH_DEF"
+  fi
+}
+
+get_fs_perm () {
+  clear
+  echo 'Enter the access permissions for the previously provided path you wish to use and then press return &#91;'"$FS_PERM_DEF"']:'
+  read FS_PERM
+  FS_PERM=$(echo "$FS_PERM" | xargs)
+  if &#91;&#91; ${#FS_PERM} -eq 0 ]]; then
+    FS_PERM="$FS_PERM_DEF"
+  fi
+}
+
+get_client_name () {
+  clear
+  echo 'Enter the name of the Ceph client node and then press return &#91;'"$CLIENT_NAME_DEF"']:'
+  read CLIENT_NAME
+  CLIENT_NAME=$(echo "$CLIENT_NAME" | xargs)
+  if &#91;&#91; ${#CLIENT_NAME} -eq 0 ]]; then
+    CLIENT_NAME="$CLIENT_NAME_DEF"
+  fi
+}
+
+get_fs_name
+get_fs_path
+get_fs_perm
+get_client_name
+ceph fs authorize $FS_NAME client.$CLIENT_NAME $FS_PATH $FS_PERM > /dev/null
+CLIENT_SECRET=$(ceph auth get-or-create-key client.$CLIENT_NAME)
+CEPH_CONF=$(ceph config generate-minimal-conf)
+MON_TARGET=$(ceph mon dump -f json 2>/dev/null|jq --raw-output .mons&#91;0].public_addrs.addrvec&#91;0].addr)
+readarray -d : -t MON_IP&lt;&lt;&lt;"$MON_TARGET"
+
+clear
+echo 'export FS_NAME='"$FS_NAME"
+echo 'export FS_PATH='"$FS_PATH"
+echo 'export CLIENT_NAME='"$CLIENT_NAME"
+echo 'export CLIENT_SECRET='"$CLIENT_SECRET"
+echo 'export MON_IP='"$MON_IP"
+echo 'sudo tee /etc/ceph/ceph.conf &amp;> /dev/null &lt;&lt;EOF
+'"$CEPH_CONF"'
+EOF
+'
+)
+</code></pre>
+
+
+
+<p>This script will prompt you for the following information;</p>
+
+
+
+<ul><li>Ceph file system name that should be used.</li><li>Ceph file system path that should be used. This should be an absolute path within the given file system.</li><li>Ceph file system permissions that should be granted for the previously given file system path. This can be one of &#8220;r&#8221; for read-only, &#8220;w&#8221; for write-only, or &#8220;rw&#8221; for both read and write permissions.</li><li>Ceph client name that should be used. This is what will be used to create a user for Ceph authentication so it should only contain alphanumeric characters as well as underscores and hyphens.</li></ul>
+
+
+
+<p>The rest of the required information will be automatically extracted by the script. If everything executes correctly, you should be left with a Bash script that looks something like this:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>export FS_NAME=cephfs
+export FS_PATH=/vm/docker-stacks
+export CLIENT_NAME=docker-node1
+export CLIENT_SECRET=AQC4YUhjP+NbOxAAH+PViHPlzP4joKruS3qkXg==
+export MON_IP=172.22.1.4
+sudo tee /etc/ceph/ceph.conf &amp;> /dev/null &lt;&lt;EOF
+# minimal ceph.conf for 20fc650f-25a4-42c6-957c-efb594ce1f01
+&#91;global]
+	fsid = 20fc650f-25a4-42c6-957c-efb594ce1f01
+	mon_host = &#91;v2:172.22.1.2:3300/0,v1:172.22.1.2:6789/0] &#91;v2:172.22.1.3:3300/0,v1:172.22.1.3:6789/0] &#91;v2:172.22.1.4:3300/0,v1:172.22.1.4:6789/0]
+EOF</code></pre>
+
+
+
+<p>Copy the Bash script to a text editor for use in the next step.</p>
+
+
+
+<h2 class="wp-block-heading">Virtual Machine Configuration</h2>
+
+
+
+<p>For the remaining steps, open a command shell to the virtual machine that will act as a Ceph client for your application. Once you have an active command shell to the virtual machine, paste the Bash script that was generated from the previous step into the command shell and then execute it with a return as required.</p>
+
+
+
+<p>Now the virtual machine should be ready for configuration. Using the same command shell that the previous Bash script was executed in, paste the following script and then execute it with a return as required.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>(
+MNT_PATH_DEF="/mnt/cephfs"
+MNT_PATH=""
+
+create_mount_path () {
+  echo "The given path $MNT_PATH does not exist. Would you like to create it automatically? Enter yes or no:"
+  read CREATE_PATH
+  CREATE_PATH=$(echo "$CREATE_PATH" | xargs)
+  if &#91;&#91; "$CREATE_PATH" == "yes" ]] || &#91;&#91; "$CREATE_PATH" == "y" ]]; then
+    sudo mkdir $MNT_PATH
+  else
+    clear
+    echo "The given path $MNT_PATH was not automatically created so you must specify an existing directory to use!"
+    echo ''
+    get_mount_path
+  fi
+}
+
+get_mount_path () {
+  echo 'Enter the absolute path of the location you wish to mount the Ceph file system to and then press return &#91;'"$MNT_PATH_DEF"']:'
+  read MNT_PATH
+  MNT_PATH=$(echo "$MNT_PATH" | xargs)
+  if &#91;&#91; ${#MNT_PATH} -eq 0 ]]; then
+    MNT_PATH="$MNT_PATH_DEF"
+  fi
+  if &#91;&#91; ! -d $MNT_PATH ]] &amp;&amp; &#91;&#91; ! -f $MNT_PATH ]]; then
+    clear
+    create_mount_path
+  elif &#91;&#91; -f $MNT_PATH ]]; then
+    clear
+    echo "The given path $MNT_PATH is not a directory!"
+    echo ''
+    get_mount_path
+  fi
+}
+
+clear
+get_mount_path
+
+sudo apt update &amp;&amp; sudo apt install -y software-properties-common
+
+wget -q -O- 'https://download.ceph.com/keys/release.asc' | sudo apt-key add -
+
+echo "deb https://download.ceph.com/debian-pacific/ $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/ceph.list > /dev/null
+
+echo "# deb-src https://download.ceph.com/debian-pacific/ $(lsb_release -cs) stable" | sudo tee -a /etc/apt/sources.list.d/ceph.list > /dev/null  
+
+sudo apt update
+
+sudo apt install -y ceph-common
+
+sudo tee /etc/ceph/ceph.client.$CLIENT_NAME.keyring &amp;> /dev/null &lt;&lt;EOF
+&#91;client.${CLIENT_NAME}]
+    key = ${CLIENT_SECRET}
+EOF
+
+sudo tee /etc/ceph/ceph.client.$CLIENT_NAME.keyring.value &amp;> /dev/null &lt;&lt;EOF
+${CLIENT_SECRET}
+EOF
+
+echo "$MON_IP:$FS_PATH $MNT_PATH ceph name=$CLIENT_NAME,fs=$FS_NAME,recover_session=clean,_netdev 0 2" | sudo tee -a /etc/fstab &amp;> /dev/null
+
+sudo mount $MNT_PATH
+)</code></pre>
+
+
+
+<p>This script will prompt you for the following information:</p>
+
+
+
+<ul><li>Absolute mount path that should be used for mounting the network file system on the virtual machine.</li></ul>
+
+
+
+<p>Once you have provided a valid answer to the previous prompt, the script will proceed to setup the required APT repository, install the required Ceph packages, create the Ceph client credential files, setup an fstab entry, and then mount the configured file system at the given mount path.</p>
+
+
+
+<p>If everything executed as expected, you should now find that the Ceph file system is mounted and ready for use!</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/connecting-debian-ubuntu-virtual-machines-to-ceph-for-network-storage/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+		<item>
+		<title>Connecting Kubernetes To A Ceph Cluster Using Rook</title>
+		<link>/compute-stacks/connecting-kubernetes-to-a-ceph-cluster-using-rook/</link>
+					<comments>/compute-stacks/connecting-kubernetes-to-a-ceph-cluster-using-rook/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Mon, 28 Mar 2022 16:30:28 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[block]]></category>
+		<category><![CDATA[ceph]]></category>
+		<category><![CDATA[ceph fs]]></category>
+		<category><![CDATA[cluster]]></category>
+		<category><![CDATA[external storage]]></category>
+		<category><![CDATA[file system]]></category>
+		<category><![CDATA[k8s]]></category>
+		<category><![CDATA[kubernetes]]></category>
+		<category><![CDATA[network storage]]></category>
+		<category><![CDATA[raw block device]]></category>
+		<category><![CDATA[rbd]]></category>
+		<category><![CDATA[storage]]></category>
+		<category><![CDATA[storage class]]></category>
+		<guid isPermaLink="false">https://azorian.solutions/?p=543</guid>
+
+					<description><![CDATA[Using Kubernetes for container orchestration is great but if you are going to scale our deployment into a multi-node cluster, you will likely find a new challenge quickly. Using local storage for your containers will quickly break the value of orchestration as your containers change nodes from time to time. This is where network based [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>Using Kubernetes for container orchestration is great but if you are going to scale our deployment into a multi-node cluster, you will likely find a new challenge quickly. Using local storage for your containers will quickly break the value of orchestration as your containers change nodes from time to time. This is where network based file storage systems become very valuable when used in-conjunction with a Kubernetes cluster. There are numerous different network file storage systems that are readily available for integration into Kubernetes. For this tutorial, I am going to focus on Ceph as it is often found in the on-premises environments that my tutorials are focused towards.</p>
+
+
+
+<p>Ceph offers three types of storage that can all be used in Kubernetes which are object storage (rados), block storage (RBD), and file systems (Ceph FS). This tutorial will focus on the latter two as that is all that is needed to hit the ground running with a number of common scenarios. It&#8217;s also worth mentioning that setting up the Ceph object storage system rados is a fairly intensive process that would at least justify it&#8217;s own blog post. You are probably already familiar with Ceph&#8217;s object storage system rados though as it&#8217;s a cross-compatible equivalent of Amazon Web Service&#8217;s S3 product. Anywhere you can use AWS&#8217;s S3 for storage, you can alternatively use Ceph&#8217;s rados gateway to achieve the same outcome.</p>
+
+
+
+<p>There are a number of different ways to connect a Kubernetes cluster to Ceph to achieve network based data storage but I will be focusing on a method that uses Rook. This method seems to be the most popular choice currently for ease of use and efficiency. Before you get started, you will need a command shell in an environment that has kubectl available with the appropriate configuration to allow administrative access to the cluster you wish to connect to Ceph. You will also need administrative access to the Ceph cluster which you intend to connect to the Kubernetes cluster. This tutorial will focus on using CLI based access to Ceph in order to complete the steps but if you know what you&#8217;re doing, you can achieve some of the same goals using a GUI based approach such as the controls provided in Proxmox Virtualization Environment.</p>
+
+
+
+<p>I have not widely tested this implementation with various combinations of Ceph and Rook but you should be aware there is a history of specific releases having known issues that require some manual intervention. My test case is based off of a Ceph 16.2.7 deployment running on top of Proxmox Virtualization Environment 7.1-7 with Rook version 1.8.1.</p>
+
+
+
+<p>Let&#8217;s start by gathering some data from the Ceph environment that will be needed to connect Kubernetes to the Ceph environment. Execute the following commands in the Ceph environment with a user that has the appropriate permissions to access sensitive Ceph configuration data (such as root) and then copy the output so that it can be executed in your Kubernetes environment:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>ROOK_EXTERNAL_FSID=$(ceph fsid)
+
+ROOK_EXTERNAL_CEPH_MON_DATA=$(ceph mon dump -f json 2&gt;/dev/null|jq --raw-output .mons&#91;0].name)=$(ceph mon dump -f json 2&gt;/dev/null|jq --raw-output .mons&#91;0].public_addrs.addrvec&#91;0].addr)
+
+ROOK_EXTERNAL_ADMIN_SECRET=$(ceph auth get-key client.admin)
+
+clear
+echo 'export NAMESPACE=rook-ceph-external'
+echo 'export ROOK_EXTERNAL_FSID='"$ROOK_EXTERNAL_FSID"
+echo 'export ROOK_EXTERNAL_CEPH_MON_DATA='"$ROOK_EXTERNAL_CEPH_MON_DATA"
+echo 'export ROOK_EXTERNAL_ADMIN_SECRET='"$ROOK_EXTERNAL_ADMIN_SECRET"</code></pre>
+
+
+
+<p>This should produce a result similar to the following:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>export NAMESPACE=rook-ceph-external
+export ROOK_EXTERNAL_FSID=XXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+export ROOK_EXTERNAL_CEPH_MON_DATA=NODE_HOSTNAME=000.000.000.000:3300
+export ROOK_EXTERNAL_ADMIN_SECRET=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</code></pre>
+
+
+
+<p>Copy all four of those lines and stash them in a text file for use later in this tutorial. Now you need to grab a copy of the Rook project files so execute the following commands in your kubectl enabled environment:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>git clone -b v1.8.1 https://github.com/rook/rook.git
+cd rook/deploy/examples</code></pre>
+
+
+
+<p>Now it&#8217;s time to load the Kubernetes cluster with all of the Rook / Ceph dependencies needed to connect the two environments. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl create -f crds.yaml -f common.yaml -f operator.yaml -f common-external.yaml</code></pre>
+
+
+
+<p>You can check that all is well and completed by running the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl get pods -n rook-ceph</code></pre>
+
+
+
+<p>This command should yield an output similar to the following:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>NAME                                 READY   STATUS    RESTARTS   AGE
+rook-ceph-operator-b89545b4f-psh7j   1/1     Running   0          2m56s</code></pre>
+
+
+
+<p>Now it&#8217;s time to setup some security and configuration related objects in Kubernetes to support the connection. Make a copy of the command output from the earlier step that you stashed away and execute those four commands in your Kubernetes environment.</p>
+
+
+
+<p>The rest of this step is pretty easy as Rook has provided a bash script to do the work for you by using the values set in the environment variables from the previous step. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>bash import-external-cluster.sh</code></pre>
+
+
+
+<p>This next step shouldn&#8217;t be necessary but there is still a bit of a lingering oversight in the Rook&#8217;s implementation design that results in an issue where a blank Ceph username and secret value are stored into the associated Kubernetes configuration. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl edit secret rook-ceph-mon -n rook-ceph-external</code></pre>
+
+
+
+<p>This should launch a VIM style editor in the CLI with some YAML formatted data visible. You need to delete the following two lines from this view and then save changes and exit:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>  ceph-secret: ""
+  ceph-username: ""</code></pre>
+
+
+
+<p>Now you&#8217;re ready to actually connect the Ceph environment with Kubernetes by applying a YAML configuration that contains the CephCluster object. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl apply -f cluster-external.yaml</code></pre>
+
+
+
+<p>This step may take some time to fully complete depending on your environment so you can run the following command to watch for the status:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>watch -n 2 kubectl get cephcluster -n rook-ceph-external</code></pre>
+
+
+
+<p>When everything is ready and all went well, you should see the &#8220;Phase&#8221; column value as &#8220;Connected&#8221;.</p>
+
+
+
+<p>Now let&#8217;s move on to getting Ceph configured with a new Ceph file system to support the Kubernetes cluster. Of course, you can re-use an existing one if you like to conserve growth capacity given that each Ceph file system requires it&#8217;s own metadata server (MDS) and only one MDS can be ran on a Ceph node. Be aware though, if you re-use the same Ceph file system you may have setup for use in a PVE cluster, you need to be extra cautious with actions you take in the future as to not accidentally damage or destroy a mission critical storage system for your PVE cluster.</p>
+
+
+
+<p>Update the following list of commands to reflect the name of the CephFS  you would like to create or use the appropriate names of an existing CephFS that you would like to re-use for your Kubernetes environment. Once you have updated the list of commands, execute them in your kubectl environment. If you are creating a new CephFS instead of re-using an existing one, execute these commands in your Ceph environment as well.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>cephfs_name=k8s-cephfs
+cephfs_metadata_pool=k8s-cephfs_metadata
+cephfs_data_pool=k8s-cephfs_data</code></pre>
+
+
+
+<p>If you are creating a new CephFS instead of re-using an existing one, execute the following commands in your Ceph environment:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>ceph osd pool create $cephfs_metadata_pool
+ceph osd pool create $cephfs_data_pool
+ceph fs new $cephfs_name $cephfs_metadata_pool $cephfs_data_pool</code></pre>
+
+
+
+<p>Now that you have a Ceph file system ready for use, it&#8217;s time to setup two storage classes in your Kubernetes environment to provide containers with both block and file system storage options. You need to update the storage class templates before you apply them to the Kubernetes environment by executing the following commands:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sed -i 's/clusterID\:\srook-ceph/clusterID\: rook-ceph-external/g' csi/rbd/storageclass.yaml
+sed -i 's/clusterID\:\srook-ceph/clusterID\: rook-ceph-external/g' csi/cephfs/storageclass.yaml
+sed -i 's/fsName\:\smyfs/fsName\: '"$cephfs_name"'/g' csi/cephfs/storageclass.yaml
+sed -i 's/pool\:\smyfs\-replicated/pool\: '"$cephfs_data_pool"'/g' csi/cephfs/storageclass.yaml
+sed -i 's/csi.storage.k8s.io\/provisioner-secret-namespace\:\srook-ceph/csi.storage.k8s.io\/provisioner-secret-namespace\: rook-ceph-external/g' csi/cephfs/storageclass.yaml
+sed -i 's/csi.storage.k8s.io\/controller-expand-secret-namespace\:\srook-ceph/csi.storage.k8s.io\/controller-expand-secret-namespace\: rook-ceph-external/g' csi/cephfs/storageclass.yaml
+sed -i 's/csi.storage.k8s.io\/node-stage-secret-namespace\:\srook-ceph/csi.storage.k8s.io\/node-stage-secret-namespace\: rook-ceph-external/g' csi/cephfs/storageclass.yaml</code></pre>
+
+
+
+<p>Now you can apply the storage class templates to the Kubernetes environment by executing the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl create -f csi/rbd/storageclass.yaml -f csi/cephfs/storageclass.yaml</code></pre>
+
+
+
+<p>The final step to this process is to set a default storage class for scenarios where a storage class is not specifically defined. I typically choose to use the RBD storage class as I most commonly use that. I use the CephFS storage class for scenarios where data needs to be consumed by more than one container simultaneously such as web application files in a high availability configuration. Execute the following command to set the default storage class to the new Ceph RBD option:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl patch storageclass rook-ceph-block -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'</code></pre>
+
+
+
+<p>That&#8217;s it! You&#8217;re now ready to start deploying containers that consume storage directly from your Ceph cluster.</p>
+
+
+
+<p>I recommend you check out <a href="/compute-stacks/automatic-virtual-host-setup-using-nginx-ingress-controller-on-kubernetes/" data-type="URL" data-id="/compute-stacks/automatic-virtual-host-setup-using-nginx-ingress-controller-on-kubernetes/">this post</a> next to take your Kubernetes deployment to the next level.</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/connecting-kubernetes-to-a-ceph-cluster-using-rook/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+	</channel>
+</rss>

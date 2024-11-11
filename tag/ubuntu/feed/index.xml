@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>ubuntu &#8211; Azorian Solutions</title>
+	<atom:link href="/tag/ubuntu/feed/" rel="self" type="application/rss+xml" />
+	<link>/</link>
+	<description>Elucidation of the intricate</description>
+	<lastBuildDate>Sat, 05 Nov 2022 21:50:15 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>
+	hourly	</sy:updatePeriod>
+	<sy:updateFrequency>
+	1	</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=6.4.1</generator>
+
+<image>
+	<url>/wp-content/uploads/2022/03/cropped-ms-icon-310x310-1-150x150.png</url>
+	<title>ubuntu &#8211; Azorian Solutions</title>
+	<link>/</link>
+	<width>32</width>
+	<height>32</height>
+</image> 
+	<item>
+		<title>Connecting Debian / Ubuntu Virtual Machines To Ceph For Network Storage</title>
+		<link>/compute-stacks/connecting-debian-ubuntu-virtual-machines-to-ceph-for-network-storage/</link>
+					<comments>/compute-stacks/connecting-debian-ubuntu-virtual-machines-to-ceph-for-network-storage/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Sat, 05 Nov 2022 21:50:11 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[ceph]]></category>
+		<category><![CDATA[ceph-fs]]></category>
+		<category><![CDATA[container]]></category>
+		<category><![CDATA[debian]]></category>
+		<category><![CDATA[linux]]></category>
+		<category><![CDATA[mount]]></category>
+		<category><![CDATA[network]]></category>
+		<category><![CDATA[nfs]]></category>
+		<category><![CDATA[storage]]></category>
+		<category><![CDATA[ubuntu]]></category>
+		<category><![CDATA[virtual-machine]]></category>
+		<category><![CDATA[vm]]></category>
+		<guid isPermaLink="false">/?p=650</guid>
+
+					<description><![CDATA[When it comes to network accessible storage in compute stacks, there&#8217;s no shortage of use cases. Whether you&#8217;re deploying multi-homed services that share common files or you just need the increased performance offered by a network file system, Ceph is a great tool for building cost-effective, hyper-converged storage solutions. This tutorial should give you a [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>When it comes to network accessible storage in compute stacks, there&#8217;s no shortage of use cases. Whether you&#8217;re deploying multi-homed services that share common files or you just need the increased performance offered by a network file system, Ceph is a great tool for building cost-effective, hyper-converged storage solutions. This tutorial should give you a very easy start in utilizing Ceph to provide network shares for your virtual machines that operate like native storage.</p>
+
+
+
+<h2 class="wp-block-heading">Ceph Configuration</h2>
+
+
+
+<p>The first step to this process involves configuring Ceph and extracting relevant information needed to setup your virtual machine client. Open a command shell to one of the hosts running Ceph and elevate your access to a user that has permissions to execute Ceph configuration commands.</p>
+
+
+
+<p>Once you have an active command shell to the Ceph server, copy and paste the following script block into the terminal and then execute it with a return as required. This will install the APT package &#8220;jq&#8221; which is used for extracting some of the configuration settings.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>(
+sudo apt install -y jq
+
+FS_NAME_DEF="cephfs"
+FS_PATH_DEF="/"
+FS_PERM_DEF="rw"
+CLIENT_NAME_DEF="vm-client"
+FS_NAME=""
+FS_PATH=""
+FS_PERM=""
+CLIENT_NAME=""
+
+get_fs_name () {
+  clear
+  echo 'Enter the name of the Ceph file system you wish to use and then press return &#91;'"$FS_NAME_DEF"']:'
+  read FS_NAME
+  FS_NAME=$(echo "$FS_NAME" | xargs)
+  if &#91;&#91; ${#FS_NAME} -eq 0 ]]; then
+    FS_NAME="$FS_NAME_DEF"
+  fi
+}
+
+get_fs_path () {
+  clear
+  echo 'Enter the absolute path within the Ceph file system you wish to use and then press return &#91;'"$FS_PATH_DEF"']:'
+  read FS_PATH
+  FS_PATH=$(echo "$FS_PATH" | xargs)
+  if &#91;&#91; ${#FS_PATH} -eq 0 ]]; then
+    FS_PATH="$FS_PATH_DEF"
+  fi
+}
+
+get_fs_perm () {
+  clear
+  echo 'Enter the access permissions for the previously provided path you wish to use and then press return &#91;'"$FS_PERM_DEF"']:'
+  read FS_PERM
+  FS_PERM=$(echo "$FS_PERM" | xargs)
+  if &#91;&#91; ${#FS_PERM} -eq 0 ]]; then
+    FS_PERM="$FS_PERM_DEF"
+  fi
+}
+
+get_client_name () {
+  clear
+  echo 'Enter the name of the Ceph client node and then press return &#91;'"$CLIENT_NAME_DEF"']:'
+  read CLIENT_NAME
+  CLIENT_NAME=$(echo "$CLIENT_NAME" | xargs)
+  if &#91;&#91; ${#CLIENT_NAME} -eq 0 ]]; then
+    CLIENT_NAME="$CLIENT_NAME_DEF"
+  fi
+}
+
+get_fs_name
+get_fs_path
+get_fs_perm
+get_client_name
+ceph fs authorize $FS_NAME client.$CLIENT_NAME $FS_PATH $FS_PERM > /dev/null
+CLIENT_SECRET=$(ceph auth get-or-create-key client.$CLIENT_NAME)
+CEPH_CONF=$(ceph config generate-minimal-conf)
+MON_TARGET=$(ceph mon dump -f json 2>/dev/null|jq --raw-output .mons&#91;0].public_addrs.addrvec&#91;0].addr)
+readarray -d : -t MON_IP&lt;&lt;&lt;"$MON_TARGET"
+
+clear
+echo 'export FS_NAME='"$FS_NAME"
+echo 'export FS_PATH='"$FS_PATH"
+echo 'export CLIENT_NAME='"$CLIENT_NAME"
+echo 'export CLIENT_SECRET='"$CLIENT_SECRET"
+echo 'export MON_IP='"$MON_IP"
+echo 'sudo tee /etc/ceph/ceph.conf &amp;> /dev/null &lt;&lt;EOF
+'"$CEPH_CONF"'
+EOF
+'
+)
+</code></pre>
+
+
+
+<p>This script will prompt you for the following information;</p>
+
+
+
+<ul><li>Ceph file system name that should be used.</li><li>Ceph file system path that should be used. This should be an absolute path within the given file system.</li><li>Ceph file system permissions that should be granted for the previously given file system path. This can be one of &#8220;r&#8221; for read-only, &#8220;w&#8221; for write-only, or &#8220;rw&#8221; for both read and write permissions.</li><li>Ceph client name that should be used. This is what will be used to create a user for Ceph authentication so it should only contain alphanumeric characters as well as underscores and hyphens.</li></ul>
+
+
+
+<p>The rest of the required information will be automatically extracted by the script. If everything executes correctly, you should be left with a Bash script that looks something like this:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>export FS_NAME=cephfs
+export FS_PATH=/vm/docker-stacks
+export CLIENT_NAME=docker-node1
+export CLIENT_SECRET=AQC4YUhjP+NbOxAAH+PViHPlzP4joKruS3qkXg==
+export MON_IP=172.22.1.4
+sudo tee /etc/ceph/ceph.conf &amp;> /dev/null &lt;&lt;EOF
+# minimal ceph.conf for 20fc650f-25a4-42c6-957c-efb594ce1f01
+&#91;global]
+	fsid = 20fc650f-25a4-42c6-957c-efb594ce1f01
+	mon_host = &#91;v2:172.22.1.2:3300/0,v1:172.22.1.2:6789/0] &#91;v2:172.22.1.3:3300/0,v1:172.22.1.3:6789/0] &#91;v2:172.22.1.4:3300/0,v1:172.22.1.4:6789/0]
+EOF</code></pre>
+
+
+
+<p>Copy the Bash script to a text editor for use in the next step.</p>
+
+
+
+<h2 class="wp-block-heading">Virtual Machine Configuration</h2>
+
+
+
+<p>For the remaining steps, open a command shell to the virtual machine that will act as a Ceph client for your application. Once you have an active command shell to the virtual machine, paste the Bash script that was generated from the previous step into the command shell and then execute it with a return as required.</p>
+
+
+
+<p>Now the virtual machine should be ready for configuration. Using the same command shell that the previous Bash script was executed in, paste the following script and then execute it with a return as required.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>(
+MNT_PATH_DEF="/mnt/cephfs"
+MNT_PATH=""
+
+create_mount_path () {
+  echo "The given path $MNT_PATH does not exist. Would you like to create it automatically? Enter yes or no:"
+  read CREATE_PATH
+  CREATE_PATH=$(echo "$CREATE_PATH" | xargs)
+  if &#91;&#91; "$CREATE_PATH" == "yes" ]] || &#91;&#91; "$CREATE_PATH" == "y" ]]; then
+    sudo mkdir $MNT_PATH
+  else
+    clear
+    echo "The given path $MNT_PATH was not automatically created so you must specify an existing directory to use!"
+    echo ''
+    get_mount_path
+  fi
+}
+
+get_mount_path () {
+  echo 'Enter the absolute path of the location you wish to mount the Ceph file system to and then press return &#91;'"$MNT_PATH_DEF"']:'
+  read MNT_PATH
+  MNT_PATH=$(echo "$MNT_PATH" | xargs)
+  if &#91;&#91; ${#MNT_PATH} -eq 0 ]]; then
+    MNT_PATH="$MNT_PATH_DEF"
+  fi
+  if &#91;&#91; ! -d $MNT_PATH ]] &amp;&amp; &#91;&#91; ! -f $MNT_PATH ]]; then
+    clear
+    create_mount_path
+  elif &#91;&#91; -f $MNT_PATH ]]; then
+    clear
+    echo "The given path $MNT_PATH is not a directory!"
+    echo ''
+    get_mount_path
+  fi
+}
+
+clear
+get_mount_path
+
+sudo apt update &amp;&amp; sudo apt install -y software-properties-common
+
+wget -q -O- 'https://download.ceph.com/keys/release.asc' | sudo apt-key add -
+
+echo "deb https://download.ceph.com/debian-pacific/ $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/ceph.list > /dev/null
+
+echo "# deb-src https://download.ceph.com/debian-pacific/ $(lsb_release -cs) stable" | sudo tee -a /etc/apt/sources.list.d/ceph.list > /dev/null  
+
+sudo apt update
+
+sudo apt install -y ceph-common
+
+sudo tee /etc/ceph/ceph.client.$CLIENT_NAME.keyring &amp;> /dev/null &lt;&lt;EOF
+&#91;client.${CLIENT_NAME}]
+    key = ${CLIENT_SECRET}
+EOF
+
+sudo tee /etc/ceph/ceph.client.$CLIENT_NAME.keyring.value &amp;> /dev/null &lt;&lt;EOF
+${CLIENT_SECRET}
+EOF
+
+echo "$MON_IP:$FS_PATH $MNT_PATH ceph name=$CLIENT_NAME,fs=$FS_NAME,recover_session=clean,_netdev 0 2" | sudo tee -a /etc/fstab &amp;> /dev/null
+
+sudo mount $MNT_PATH
+)</code></pre>
+
+
+
+<p>This script will prompt you for the following information:</p>
+
+
+
+<ul><li>Absolute mount path that should be used for mounting the network file system on the virtual machine.</li></ul>
+
+
+
+<p>Once you have provided a valid answer to the previous prompt, the script will proceed to setup the required APT repository, install the required Ceph packages, create the Ceph client credential files, setup an fstab entry, and then mount the configured file system at the given mount path.</p>
+
+
+
+<p>If everything executed as expected, you should now find that the Ceph file system is mounted and ready for use!</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/connecting-debian-ubuntu-virtual-machines-to-ceph-for-network-storage/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+	</channel>
+</rss>

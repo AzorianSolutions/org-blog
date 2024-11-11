@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>lxc &#8211; Azorian Solutions</title>
+	<atom:link href="/tag/lxc/feed/" rel="self" type="application/rss+xml" />
+	<link>/</link>
+	<description>Elucidation of the intricate</description>
+	<lastBuildDate>Mon, 28 Mar 2022 19:32:49 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>
+	hourly	</sy:updatePeriod>
+	<sy:updateFrequency>
+	1	</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=6.4.1</generator>
+
+<image>
+	<url>/wp-content/uploads/2022/03/cropped-ms-icon-310x310-1-150x150.png</url>
+	<title>lxc &#8211; Azorian Solutions</title>
+	<link>/</link>
+	<width>32</width>
+	<height>32</height>
+</image> 
+	<item>
+		<title>Deploying Docker On Ubuntu 20.04</title>
+		<link>/compute-stacks/deploying-docker-on-ubuntu-20-04/</link>
+					<comments>/compute-stacks/deploying-docker-on-ubuntu-20-04/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Sun, 27 Mar 2022 14:39:17 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[containers]]></category>
+		<category><![CDATA[deployment]]></category>
+		<category><![CDATA[development]]></category>
+		<category><![CDATA[devops]]></category>
+		<category><![CDATA[docker]]></category>
+		<category><![CDATA[hosting]]></category>
+		<category><![CDATA[lxc]]></category>
+		<category><![CDATA[podman]]></category>
+		<category><![CDATA[virtual machines]]></category>
+		<category><![CDATA[virtualization]]></category>
+		<category><![CDATA[vms]]></category>
+		<guid isPermaLink="false">https://azorian.solutions/?p=508</guid>
+
+					<description><![CDATA[I&#8217;m sure you have heard a reference to containers in the midst of what is a container revolution essentially. Much like when machine virtualization really started to gain a footing, containers are off to a similar start. Given that the focus of this article is not to explain the origin or use cases for containers, [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>I&#8217;m sure you have heard a reference to containers in the midst of what is a container revolution essentially. Much like when machine virtualization really started to gain a footing, containers are off to a similar start. Given that the focus of this article is not to explain the origin or use cases for containers, I will spare a lot of detail explaining all the intricacies. I do however want to provide some brief examples of great use cases for containerized services.</p>
+
+
+
+<p>Have you ever been in a position where it was time to upgrade a production service to a new major version but are reluctant to make such a potentially impacting change to your production environment? I would say many have been here a time or two. Since machine virtualization came along, this challenge has somewhat been mitigated through the availability of great virtualization features like snapshots with timely rollbacks and other similar backup solutions. While this approach has proven to be very valuable, it can still yield some undesired down time during the upgrade and/or rollback process depending on your deployment configurations.</p>
+
+
+
+<p>Enter the containerization approach. Wouldn&#8217;t it be great if testing a new version of your chosen software was essentially nothing more than stopping one machine process and starting another? This is one of the many outcomes you can achieve when using containerized services. No longer is there a need to spin up a second (potentially resource hungry) virtual machine (VM) just to find out that you have more work to do before upgrading to a new package release for your software. This also applies to scenarios where a new software release goes south sometime after deployment and you need to quickly find your way back to a known working version.</p>
+
+
+
+<p>Not all containers are created equally though! The term container is a bit ambiguous since there are actually different types of containers. For example, if you&#8217;re a Proxmox Virtualization Environment (PVE) user, you may have noticed the containers feature. This refers to what are known as Linux Containers (LXC). These containers are not the same as the containers you might run with Docker or Podman. LXC is a great alternative to using more resource hungry VMs when you don&#8217;t necessarily need the features only found with traditional VMs. A Docker or Podman container is more akin to a convenient development and deployment solution for applications. Think of these container types as a great way to package an application with all of it&#8217;s environmental dependencies to make execution in different hosting environments much smoother. Since it is outside the scope of this article, I will not be going into the vast details regarding the differences between LXC and Docker/Podman containers.</p>
+
+
+
+<p>Since this article assumes you&#8217;re a container novice, I will be focusing on the simplest use cases to get you started with containers. This means I will focus on the use of Docker vs Podman even though both have many things in common including a nearly identical command line interface. There are many reasons why one might choose to use one container solution over the other but again, that is outside the scope of this article.</p>
+
+
+
+<h2 class="wp-block-heading">Installing Docker Engine</h2>
+
+
+
+<p>To get started with running Docker containers, you need to install the Docker Engine. This software package is readily available on many major Linux distributions including both Debian and RHEL based systems. I will be focusing on deployment in a Debian based environment (Ubuntu) in this article. Before beginning, I will assume you have a fresh, unmodified Ubuntu 18.04+ environment with an active shell session using a non-root user that has super user (sudo) privileges.</p>
+
+
+
+<p>The first step is to update your environment with all the latest updates for your current distribution release. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo apt update &amp;&amp; sudo apt dist-upgrade -y</code></pre>
+
+
+
+<p>The next step is to install a few dependencies that will simplify the remaining steps of the process by condensing some commands into more abstract, non-release specific commands. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo apt install -y ca-certificates curl gnupg lsb-release</code></pre>
+
+
+
+<p>Now you need to download and install the Docker repository GPG key to the local key ring. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg</code></pre>
+
+
+
+<p>Next you will need to add the appropriate APT package manager configuration so that your system is aware of the Docker repository. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>echo \
+  "deb &#91;arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list &gt; /dev/null</code></pre>
+
+
+
+<p>Now that the operating system is aware of the Docker repository, you need to update the local APT package cache to include all of the packages available from the Docker repository. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo apt update</code></pre>
+
+
+
+<p>Now it&#8217;s time to install the Docker Engine as well as containerd. Containerd is what ultimately runs the containers in this environment while the Docker Engine manages the setup and maintenance of those running containers. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo apt install -y docker-ce docker-ce-cli containerd.io</code></pre>
+
+
+
+<p>Now that the Docker Engine is installed, you should override the default network configuration to help ensure the internal networks used for the containers don&#8217;t overlap with your network infrastructure. This step isn&#8217;t fool-proof but will likely be sufficient for the typical production environment that doesn&#8217;t make use of the IANA 192.168.0.0/16 subnet. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>echo '{
+  "bip": "192.168.228.1/23",
+  "default-address-pools": &#91;{"base":"192.168.230.0/23","size":27}]
+}
+' | sudo tee /etc/docker/daemon.json &gt; /dev/null</code></pre>
+
+
+
+<p>Now the Docker Engine needs restarted in order for the networking changes to take effect. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo systemctl restart docker</code></pre>
+
+
+
+<p>Boom! You&#8217;re ready to start running Docker containers already! It really is that simple! Since you&#8217;re here reading this article, I will assume you&#8217;re not yet a CLI ninja though so you&#8217;ll probably want some sort of graphical user interface (GUI) for managing the containers on this new Docker host. There are some options out there but Portainer is by far the most heavily developed product on the market at the time of writing this article.</p>
+
+
+
+<h2 class="wp-block-heading">Installing Portainer GUI</h2>
+
+
+
+<p>If you would like to install the latest Portainer version to the server to manage it, execute the following commands:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>export portainer_version=$(curl --silent "https://api.github.com/repos/portainer/portainer/releases/latest" | grep '"tag_name":' | sed -E 's/.*"(&#91;^"]+)".*/\1/')
+
+sudo docker volume create portainer_data
+
+sudo docker run -d -p 8000:8000 -p 9443:9443 --name portainer \
+    --restart=always \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v portainer_data:/data \
+    portainer/portainer-ce:$portainer_version</code></pre>
+
+
+
+<p>If everything worked, this should result in a new GUI ready to use by navigating to https://YOUR-MACHINE-IP-OR-HOSTNAME:9443./ On your first visit, you will be prompted to create a new administrator account to use with the app. Now you&#8217;re really ready to hit the ground running with ninja speed as you start deploying containers!</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/deploying-docker-on-ubuntu-20-04/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+	</channel>
+</rss>

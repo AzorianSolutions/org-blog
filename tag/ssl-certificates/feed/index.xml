@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>ssl certificates &#8211; Azorian Solutions</title>
+	<atom:link href="/tag/ssl-certificates/feed/" rel="self" type="application/rss+xml" />
+	<link>/</link>
+	<description>Elucidation of the intricate</description>
+	<lastBuildDate>Wed, 30 Mar 2022 12:29:07 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>
+	hourly	</sy:updatePeriod>
+	<sy:updateFrequency>
+	1	</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=6.4.1</generator>
+
+<image>
+	<url>/wp-content/uploads/2022/03/cropped-ms-icon-310x310-1-150x150.png</url>
+	<title>ssl certificates &#8211; Azorian Solutions</title>
+	<link>/</link>
+	<width>32</width>
+	<height>32</height>
+</image> 
+	<item>
+		<title>Automatic LetsEncrypt SSL Registration for Kubernetes Using Cert-Manager</title>
+		<link>/compute-stacks/automatic-letsencrypt-ssl-registration-for-kubernetes-using-cert-manager/</link>
+					<comments>/compute-stacks/automatic-letsencrypt-ssl-registration-for-kubernetes-using-cert-manager/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Mon, 28 Mar 2022 18:15:54 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[acme]]></category>
+		<category><![CDATA[automatic ssl]]></category>
+		<category><![CDATA[automation]]></category>
+		<category><![CDATA[certificate registration]]></category>
+		<category><![CDATA[ingress controller]]></category>
+		<category><![CDATA[k8s]]></category>
+		<category><![CDATA[kubernetes]]></category>
+		<category><![CDATA[letsencrypt]]></category>
+		<category><![CDATA[ssl]]></category>
+		<category><![CDATA[ssl certificates]]></category>
+		<guid isPermaLink="false">https://azorian.solutions/?p=580</guid>
+
+					<description><![CDATA[I don&#8217;t think many will argue that the status quo of security on the Internet today dictates that the use of SSL for web services is a must. This used to be quite a painful and expensive standard to maintain for many as SSL registration isn&#8217;t exactly cheap and requires ongoing maintenance of SSL certificates [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>I don&#8217;t think many will argue that the status quo of security on the Internet today dictates that the use of SSL for web services is a must. This used to be quite a painful and expensive standard to maintain for many as SSL registration isn&#8217;t exactly cheap and requires ongoing maintenance of SSL certificates as they reach their expiration. Thankfully, in an effort to create a more secure Internet, there has been an advent of free ACME based SSL registration services such as LetsEncrypt. This project even took a lot of the headache out of the process by providing facilities to handle automatic renewal of these certificates since they are much shorter lived (3 months) than the traditional SSL certificates of one or more years. This is great until you start working with more modern environments that use container orchestration as opposed to the traditional bare metal or virtual machine based servers.</p>
+
+
+
+<p>Enter Cert-Manager for Kubernetes. This is one of a number of projects that have provided a simple and reliable solution for bridging the gap in automation left by this transition. You should find that this tutorial will be rather short and sweet to achieving this goal. You do however need to make sure you have already implemented a proper ingress controller as this is a key dependency of making all of this work. If you haven&#8217;t done so yet, check out my tutorial on deploying the Nginx Ingress Controller for Kubernetes as that will get you where you need to be to make use of this.</p>
+
+
+
+<p>Let&#8217;s jump right into it as this will go very quickly. Execute the following commands in a kubectl enabled environment to install Cert-Manager to your Kubernetes environment:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>cm_version=$(curl --silent "https://api.github.com/repos/cert-manager/cert-manager/releases/latest" | grep '"tag_name":' | sed -E 's/.*"(&#91;^"]+)".*/\1/')
+
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/$cm_version/cert-manager.yaml</code></pre>
+
+
+
+<p>Now you need to create some ACME providers for Cert-Manager to use for SSL registration. For this tutorial, I will be focusing on the use of LetsEncrypt given it&#8217;s popularity. Execute the following commands after updating the &#8220;cm_email&#8221; value to an email address that you would like to receive LetsEncrypt expiration notifications at:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>cm_email=your-alias@your-company.domain
+
+echo 'apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    email: '"$cm_email"'
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-production-account-key
+    solvers:
+    - http01:
+        ingress:
+          class: nginx' | kubectl apply -f -
+
+echo 'apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    email: '"$cm_email"'
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+    - http01:
+        ingress:
+          class: nginx' | kubectl apply -f -</code></pre>
+
+
+
+<p>That&#8217;s it! Now you&#8217;re ready to start deploying services and ingress controllers that receive automatic SSL registration. The previous commands will setup configuration for both the LetsEncrypt production and staging environments so you can test configurations before pounding the production instance with bad requests.</p>
+
+
+
+<p>Let&#8217;s take a look at what a simple scenario using the Cert-Manager looks like to obtain a temporary SSL certificate from the LetsEncrypt <strong>staging</strong> environment. If you want to setup an ingress object to use the LetsEncrypt production environment, you just need to change the &#8220;letsencrypt-staging&#8221; string below to &#8220;letsencrypt&#8221; and update the object. I recommend you start out always using the staging environment first until you get the hang of the whole process through repetition.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: http-lb
+  namespace: website-namespace
+  annotations:
+    kubernetes.io/tls-acme: "true"
+    cert-manager.io/cluster-issuer: "<strong>letsencrypt-staging</strong>"
+    cert-manager.io/issue-temporary-certificate: "true"
+    acme.cert-manager.io/http01-edit-in-place: "true"
+spec:
+  rules:
+  - host: <strong>your.website.domain</strong>
+    http:
+      paths:
+      - pathType: Prefix
+        path: /
+        backend:
+          service:
+            name: http-svc
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - <strong>your.website.domain</strong>
+    secretName: http-lb-cert</code></pre>
+
+
+
+<p>It&#8217;s very important to remember that you need to have the DNS configuration complete and propagated before pushing one of these configurations to the Kubernetes environment. If you don&#8217;t then there is a good chance you will cause a negative query hit for the domain you&#8217;re trying to register SSL certificates for and that will take longer to clear out of the internal DNS cache. Thankfully, Cert-Manager has proper local verification features that will prevent the request from going to LetsEncrypt before all pieces are in place but that will not mitigate the aforementioned delay should you get ahead of yourself.</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/automatic-letsencrypt-ssl-registration-for-kubernetes-using-cert-manager/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+	</channel>
+</rss>

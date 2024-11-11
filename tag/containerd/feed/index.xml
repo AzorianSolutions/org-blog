@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>containerd &#8211; Azorian Solutions</title>
+	<atom:link href="/tag/containerd/feed/" rel="self" type="application/rss+xml" />
+	<link>/</link>
+	<description>Elucidation of the intricate</description>
+	<lastBuildDate>Mon, 28 Mar 2022 23:45:35 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>
+	hourly	</sy:updatePeriod>
+	<sy:updateFrequency>
+	1	</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=6.4.1</generator>
+
+<image>
+	<url>/wp-content/uploads/2022/03/cropped-ms-icon-310x310-1-150x150.png</url>
+	<title>containerd &#8211; Azorian Solutions</title>
+	<link>/</link>
+	<width>32</width>
+	<height>32</height>
+</image> 
+	<item>
+		<title>Introduction To Containerized Services</title>
+		<link>/compute-stacks/introduction-to-containerized-services/</link>
+					<comments>/compute-stacks/introduction-to-containerized-services/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Mon, 28 Mar 2022 23:45:31 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[compose]]></category>
+		<category><![CDATA[containerd]]></category>
+		<category><![CDATA[containers]]></category>
+		<category><![CDATA[deployment]]></category>
+		<category><![CDATA[docker]]></category>
+		<category><![CDATA[hosting]]></category>
+		<category><![CDATA[k8s]]></category>
+		<category><![CDATA[kubernetes]]></category>
+		<category><![CDATA[networking]]></category>
+		<category><![CDATA[podman]]></category>
+		<category><![CDATA[portability]]></category>
+		<category><![CDATA[virtualization]]></category>
+		<guid isPermaLink="false">/?p=637</guid>
+
+					<description><![CDATA[So you&#8217;ve heard about this container thing through the grapevine? You have probably heard it referenced through the use of the term Docker more so than container as many seem to misuse the term Docker to describe the concept of containers. Terminology is important because not all containers are created equally! For instance, you may [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>So you&#8217;ve heard about this container thing through the grapevine? You have probably heard it referenced through the use of the term Docker more so than container as many seem to misuse the term Docker to describe the concept of containers. Terminology is important because not all containers are created equally! For instance, you may have ever heard of Linux containers which are often referenced as LXC such as those in Proxmox Virtualization Environment. This type of container is not the same as the containers that are ran by Docker Engine, Podman, and Kubernetes. Containers that run on Docker Engine, Podman, and Kubernetes are Open Container Initiative (OCI) compliant excluding Docker built images which typically require some form of shimming outside of the Docker Engine. This is not to say that one can&#8217;t be ran in the environment of the other but this is not a two way street. Through the use of additional tooling, one can actually run OCI compliant container images with LXC but the inverse is not so true.</p>
+
+
+
+<p>Given that the general focus of many of my blog posts will be containerization using OCI compliant images, I am not going to go into great detail about the LXC system but some of the benefits I outline about OCI containers will also be true for LXC.</p>
+
+
+
+<p>So why bother with containers anyways when you have perfectly great environments for running virtual machines? Well, it seems like the list of reasons is endless but I will try to cover many of the reasons I know and find relevant to most of what I do. So let&#8217;s jump right in to it and I will explain many of the high level areas of benefits.</p>
+
+
+
+<h2 class="wp-block-heading">Resource Efficiency</h2>
+
+
+
+<p>If you have ever created a number of virtual machines and then taken notice to their idle resource utilization before you have configured them for their particular roles,  you may have noticed that the utilization is not exactly tiny for a machine that isn&#8217;t really doing anything. This is because the Linux kernel while very efficient compared to that POS Windows, is still a bit heavy once loaded into memory. This isn&#8217;t a bad thing since after all, it offers some pretty amazing abilities. This is however often wasteful in a number of environments that don&#8217;t really need to have a large number of Linux kernel copies running just to service one or two primary processes per virtual machine.</p>
+
+
+
+<p>There are some scenarios that justify the use of separate kernels still for truly mission critical security guarantees such as those maintained by nation states. This isn&#8217;t to say that the Linux kernel is insecure as it provides all of the appropriate isolation facilities for containers to run fully isolated from one another. However, humans make mistakes and every once in awhile, a security bug may come along that could put this isolation at risk. This is exactly why every application should be considered on a case by case basis. If you&#8217;re just running some everyday applications like database servers, DNS servers, and others alike that don&#8217;t hold truly sensitive data (like the kind that could contribute to the loss of millions of dollars or human life) then you really don&#8217;t need to achieve paranoid level security policies.</p>
+
+
+
+<p>This is where containers really shine in a noticeable way as the overhead for a container is more or less just the overhead of the process or processes that it runs as opposed to creating entire copies of the Linux kernel. Instead, containers on a container host simply share the resources of the host machine through the user of kernel cgroups and namespaces. Namespaces allow for the creation of virtual hardware in the container and act as a sort of gateway to the underlying host hardware that is to be shared between containers.  Kernel control groups (or cgroups for short) are used to apply limits, prioritization, accounting and control of various system resources such as memory, CPU, and file systems. You can can read more about Kernel cgroups <a href="https://en.wikipedia.org/wiki/Cgroups" data-type="URL" data-id="https://en.wikipedia.org/wiki/Cgroups" target="_blank" rel="noreferrer noopener">here</a>.</p>
+
+
+
+<h2 class="wp-block-heading">Portability</h2>
+
+
+
+<p>Containers provide a really effective means of packaging applications for distribution and hosting. If you have ever managed traditional bare metal or virtual machine based servers back in the day, you have almost certainly ran into scenarios where you were trying to deploy multiple applications to the same machine only to find out the hard way that the applications depend on different versions of a shared package. A good example of this would be a web application that requires a newer version of a language interpreter like PHP but the other application might be fairly outdated and require a much older version to work. This can be a real PITA to make work on the same machine in a clean way that doesn&#8217;t make maintaining ongoing updates a real nightmare.</p>
+
+
+
+<p>Containers solve this problem by creating an isolated environment for each process as desired which means you can now run an arbitrary amount of applications on the same host machine, all requiring a different version of a common dependency without any concern. Furthermore, this design also isolates the package updates of one packaged application from another that might be loosely coupled together. An example of this could be a web application that also has a separate application to provide an API.</p>
+
+
+
+<h2 class="wp-block-heading">Deployment</h2>
+
+
+
+<p>Another great thing that containers solve is the ability to quickly roll out additional copies of an application for testing or updates. Since every container can maintain it&#8217;s own entire set of dependencies, this means you can create multiple copies of the same application with different versions of dependencies installed. This is incredibly useful for mission critical processes that demand zero downtime. With this model, you can easily roll out a copy of an application with the latest updates for dependencies to test.</p>
+
+
+
+<p>I know what some of you are thinking at this point, &#8220;I could do that before with virtual machines through the use of snapshots and cloning.&#8221; You are correct about that but the speed and efficiency at which that can be done has been rivaled by the equivalent process in containers. Depending on the operational requirements of the application, you may not be able to keep both versions actively running side by side thus forcing you to do a form of fast swapping. This process becomes much slower if you&#8217;re dealing in the speed of VM snapshot restoration or rebooting.</p>
+
+
+
+<p>With containers, since you don&#8217;t have the time it takes to load the entire kernel and all supporting startup processes, you can move immediately to starting the actual primary process from the moment you say go. This is great if you have a scenario where a database is too big to run multiple copies for testing but an application that relies on that database would be destructive if two copies were using the same database instance (such as network  monitoring for example).</p>
+
+
+
+<h2 class="wp-block-heading">Scalability</h2>
+
+
+
+<p>Since the general design intention of a container is to one a single primary process such as a database server, an HTTP server, or maybe an SSH server as examples, this by design lends itself very well to the modern micro-service architecture that has taken hold in the application development world. A micro-service architecture is seemingly the most ideal design choice for most environments today because not only does it better isolate application component failures thereby limiting the effects of an outage, it also makes it much easier to scale applications more efficiently.</p>
+
+
+
+<p>Consider the design of the original eBay architecture. It followed the old school principal of monolithic design where you had one ginormous application that couldn&#8217;t be ran on multiple machines very well. This meant that as user demand grew, the underlying hardware running the application had to grow as well. At different points in history, this quickly became a problem because hardware has only ever been so powerful at any given time. If the best CPU at the time only offered 8 cores and the best motherboards could only handle 4 CPUs, then you have quickly found a limit to just how far that application can scale. This scenario illustrated one of the many great examples why micro-service architecture had to become the new approach moving forward. It was the only realistic way to eventually to to the scale that some websites today run at such as eBay, Facebook, Twitter, Instagram, etc&#8230;</p>
+
+
+
+<p>Possibly to your surprise, just about every major tech company today is making use of not only micro-service architecture but containerization as well. Examples include all of the major video streaming companies like Netflix, Hulu, Amazon Prime, etc.. as well as some of the biggest telecommunications providers in the world like Comcast, Cox, Charter, Verizon, AT&amp;T, etc&#8230; This new model of application design has really changed the landscape for efficient scalability.</p>
+
+
+
+<p>Even before containers, large organizations would use automation to grow and shrink the underlying resources of applications to handle spikes and valleys in user demand. Imagine having an application that would see a 5000% traffic growth at roughly the same time every day on a daily basis. Think about people returning home from work and turning on the latest episode of a popular series that just came out that day. Before containers, this meant that a lot of virtual machines would be created and/or started simultaneously to meet the predictable demand of a hungry user base. Starting that many VMs at one time can really put some strain on infrastructure, especially the underlying storage systems. Containers have really curved that strain widely since there is far less required to be retrieved from an underlying storage system during process start-up. This means creating 1,000 copies of a process is far less demanding on physical hardware than creating 1,000 VMs to run that single process.</p>
+
+
+
+<h2 class="wp-block-heading">Networking</h2>
+
+
+
+<p>The advent of containerization also provided the ability to take new, more unique approaches to solving a number of networking challenges that many large scale applications like Facebook and others have encountered inside of data centers. You can run all the fiber and switches you want, but depending on how your application is designed, you can still create massive traffic jams across data center networks. Since container orchestration quickly became much more advanced to meet the growing engineering demands of containerized applications, this paved the road for some new approaches to mitigating these types of traffic jams.</p>
+
+
+
+<p>Traditionally, it wouldn&#8217;t be uncommon to see data center designs that kept all of the HTTP services on one cluster of servers and all of the database services on a totally different set of servers. Naturally, this meant there often had to be a very hefty fiber optic and switch network to interconnect the clusters. This can quickly create other scalability issues where throwing money at the problem simply won&#8217;t resolve the issues.</p>
+
+
+
+<p>Enter a more modern approach where now a company might use advanced container orchestration to ensure that anytime a copy of an HTTP service is deployed to a physical host, that a copy of the supporting database server also gets deployed on the same physical machine along side the HTTP service. This means that requests served by the HTTP service no longer require the network communication to the database service to leave the physical machine and traverse an expensive and hard to maintain fiber optic network.</p>
+
+
+
+<h2 class="wp-block-heading">In Closing</h2>
+
+
+
+<p>I could go on with many other use case examples and detailed explanations but I imagine you get the general idea. Just as when the advent of virtual machines happened and took the computing world by storm, containers have done the same thing thereby taking us all on another huge leap into the future of large scale computing. I realize that many of my examples were based on large scale deployments of huge applications but it&#8217;s important to remember that many of these same benefits translate to smaller organizations as well. After all, automation is automation no matter what the scale. If a human doesn&#8217;t have to handle the task or a task is less error prone, then there is still a quantifiable value proposition.</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/introduction-to-containerized-services/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+	</channel>
+</rss>

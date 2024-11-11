@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>react &#8211; Azorian Solutions</title>
+	<atom:link href="/tag/react/feed/" rel="self" type="application/rss+xml" />
+	<link>/</link>
+	<description>Elucidation of the intricate</description>
+	<lastBuildDate>Mon, 29 Jul 2024 09:48:09 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>
+	hourly	</sy:updatePeriod>
+	<sy:updateFrequency>
+	1	</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=6.4.1</generator>
+
+<image>
+	<url>/wp-content/uploads/2022/03/cropped-ms-icon-310x310-1-150x150.png</url>
+	<title>react &#8211; Azorian Solutions</title>
+	<link>/</link>
+	<width>32</width>
+	<height>32</height>
+</image> 
+	<item>
+		<title>The Double-Edged Elephant In The Industry</title>
+		<link>/software-dev/the-double-edged-elephant-in-the-industry/</link>
+					<comments>/software-dev/the-double-edged-elephant-in-the-industry/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Mon, 29 Jul 2024 09:48:08 +0000</pubDate>
+				<category><![CDATA[Software Dev]]></category>
+		<category><![CDATA[angular]]></category>
+		<category><![CDATA[app]]></category>
+		<category><![CDATA[css]]></category>
+		<category><![CDATA[development]]></category>
+		<category><![CDATA[engineering]]></category>
+		<category><![CDATA[frontend]]></category>
+		<category><![CDATA[html]]></category>
+		<category><![CDATA[javascript]]></category>
+		<category><![CDATA[js]]></category>
+		<category><![CDATA[knockout]]></category>
+		<category><![CDATA[react]]></category>
+		<category><![CDATA[software]]></category>
+		<category><![CDATA[vue]]></category>
+		<category><![CDATA[web]]></category>
+		<category><![CDATA[website]]></category>
+		<guid isPermaLink="false">/?p=681</guid>
+
+					<description><![CDATA[I want to preface this piece by saying that this will be somewhat speculative, and there are certainly others much more qualified on the topic than I. I hope to captivate you long enough to draw attention to the elephant in modern web app development, as it relates to refueling the industry with fresh talent. [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>I want to preface this piece by saying that this will be somewhat speculative, and there are certainly others much more qualified on the topic than I. I hope to captivate you long enough to draw attention to the elephant in modern web app development, as it relates to refueling the industry with fresh talent. With that being said, a little background on me.</p>
+
+
+
+<p>I&#8217;m Matt, a 37 year old I.T. Professional with a thirst for knowledge and experience, and a work ethic that benefits accordingly. Like many, I got my start with technology very young, when bottlenecks consisted of dial-up connections and CPU speeds. I was infatuated with server and network technology before I was a teen, which evolved into fascination with client &lt;> server applications, most specifically web applications.</p>
+
+
+
+<p>By high school, I was freelancing on the side, which evolved into my first full-time position in 2006 as an interactive media &amp; web developer. At this time, it was still normal practice to produce semi-static websites with XHTML 1.1, CSS 2, and vanilla JavaScript (ES3). Mind you, jQuery had just been released that same year, so the agency didn&#8217;t even adopt it for the first year. As if these technologies didn&#8217;t provide enough of a tech rodeo, I was also working heavily in Flash, Flex, and ActionScript 2 / 3.</p>
+
+
+
+<p>All of that is to say, I started when websites and web apps were in contrast, incredibly simple with a tiny tech stack. Whether we were building websites and applications in Flex, PHP, ASP.NET C#, or even ColdFusion, the browser tech stack remained rather simple. There would definitely be a handful of small JavaScript libraries as part of the standard foundation, but all in with CSS, would still only represent tens of files in non-media assets. Simply put, the most complicated component of the project was always the backend.</p>
+
+
+
+<p>Since my beginnings in this career, I have served in many different roles and garnered vast experience, with a broad lateral reach across common industries such as banking, healthcare, telecommunications, finance, and marketing. In that chaotic, tireless, workaholic fueled road to burn-out, I have had the pleasure of experiencing very exciting evolutions of website design, web application engineering, and infrastructure-as-a-service (IaaS).</p>
+
+
+
+<p>After having said all that, hopefully you can appreciate that I have been around to see both before and after what I&#8217;ll dub &#8220;the chaos.&#8221; The chaos as I&#8217;ll refer to it from here on out, is the necessary evil that represents the bittersweet, double-edged sword I referenced in the title. This chaos encompasses the ever-evolving, leading popular pseudo-standard tech stack being used at any given time to create web apps. From what I can tell, the current choice seems to be some variation of Node.js, TypeScript, SCSS / CSS3, Bootstrap / Tailwind, React, and the many libraries that come into play as a result of common app features such as linters, testing, CSS compilers, and state management.</p>
+
+
+
+<p>I&#8217;ll be the first to praise much of the current tech stack as one that while highly complex, is a necessary evil to achieve the greatness that is large scale platforms. While I do believe that Facebook as an example is a complete cess pool of wasted energy, I also believe that as a web application, it represents quite an astounding achievement. When considering the problematic past of web browsers, and especially JavaScript, I do believe that for web apps to progress to what they are today, the current tech stack was bound to land where it did. I can still remember clearly some of the monstrosities that I created in the 2000&#8217;s era, that could have been multitudes better, if given the tech stack of today. It should be no wonder why the position of &#8220;web developer&#8221; has largely split into &#8220;frontend&#8221; and &#8220;backend&#8221; developers, as frontend development is now it&#8217;s own beast. I wouldn&#8217;t have concurred with this sentiment fifteen years ago.</p>
+
+
+
+<p>Something that I feel is easy for senior engineers to forget as I once did, is that we had a notable advantage over this onslaught of complication. Not only did many of us get to go through the slower transitions that lead to today, but we often had employers that still invested into developing their employees. My experience when I got my first agency job was not astounding, I wouldn&#8217;t even say it was impressive. Yet, this employer took a chance on my ignorant confidence. For that, we were both greatly rewarded over time. Even after a break from frontend for only a few years, I found myself somewhat intimidated with adopting the latest and greatest once again. This is, <strong>the double-edged elephant in the industry</strong>.</p>
+
+
+
+<p>Now that the mindset of web tech companies seem to be largely focused on massive scale user adoption, this has dramatically changed the goals of the businesses behind the products. This has essentially moved the entry point goal post to something quite substantial in contrast to my simple beginnings. A sizable portion of these tech companies now seem to only seek senior level resources, or at best, don&#8217;t care to make any investment trade offs with junior level resources, expecting valuable experience for entry level positions. There was once an era of web where the typical job market was fruitful with opportunities at small to medium sized local companies that were just trying to create their own thing. Now, it&#8217;s a far-cry from that, considering that many of these companies no longer exist, and the ones that do, have turned to software-as-a-service (SaaS) solutions to fulfill their needs.</p>
+
+
+
+<p>So in closing, this post is to ask the question, to what end? Perhaps this is naive in consideration of the coming AI revolutions. I truly believe, there will be a day that a great deal of this work can and will be largely automated through the use of AI, assuming we can get their without perpetual war destroying our way of life first. I have no idea if that day could be in five years or fifteen, but I do believe it&#8217;s coming. This presumably leaves about one generation left to fill the gap. Is this perhaps a driver, of a seemingly shortsighted bet against refueling an industry with fresh, energetic, and motivated talent? If not, then companies need to get comfortable with investing into junior resources, and not setting perfection as a zero-fail mission. Otherwise, when my era of engineers finish burning out and/or moving on, there will be a huge talent void with ginormous financial stakes teetering on it&#8217;s outcome.</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/software-dev/the-double-edged-elephant-in-the-industry/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+	</channel>
+</rss>

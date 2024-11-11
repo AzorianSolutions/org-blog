@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>powerdns &#8211; Azorian Solutions</title>
+	<atom:link href="/tag/powerdns/feed/" rel="self" type="application/rss+xml" />
+	<link>/</link>
+	<description>Elucidation of the intricate</description>
+	<lastBuildDate>Mon, 28 Mar 2022 23:47:35 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>
+	hourly	</sy:updatePeriod>
+	<sy:updateFrequency>
+	1	</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=6.4.1</generator>
+
+<image>
+	<url>/wp-content/uploads/2022/03/cropped-ms-icon-310x310-1-150x150.png</url>
+	<title>powerdns &#8211; Azorian Solutions</title>
+	<link>/</link>
+	<width>32</width>
+	<height>32</height>
+</image> 
+	<item>
+		<title>Deploying a PowerDNS Resolver on Docker</title>
+		<link>/isp/network-services/deploying-a-powerdns-resolver-on-docker/</link>
+					<comments>/isp/network-services/deploying-a-powerdns-resolver-on-docker/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Mon, 28 Mar 2022 20:45:05 +0000</pubDate>
+				<category><![CDATA[Network Services]]></category>
+		<category><![CDATA[caching]]></category>
+		<category><![CDATA[compose]]></category>
+		<category><![CDATA[dns]]></category>
+		<category><![CDATA[docker]]></category>
+		<category><![CDATA[powerdns]]></category>
+		<category><![CDATA[recursor]]></category>
+		<category><![CDATA[server]]></category>
+		<guid isPermaLink="false">/?p=625</guid>
+
+					<description><![CDATA[Have you been avoiding the seemingly daunting task of deploying a DNS recursor A.K.A. caching server for your internal network? Stress no more because it&#8217;s actually very simple, even with a bare metal or virtual machine setup. This tutorial however will not be addressing either of those routes as I believe in pushing methods forward. [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>Have you been avoiding the seemingly daunting task of deploying a DNS recursor A.K.A. caching server for your internal network? Stress no more because it&#8217;s actually very simple, even with a bare metal or virtual machine setup. This tutorial however will not be addressing either of those routes as I believe in pushing methods forward. This is where Docker comes in as it can really speed up your time to deployment on many services, not to mention it can really ease the ongoing maintenance as well! If you aren&#8217;t really familiar with the concepts of containers yet then I recommend you take the time to read my introduction to containerization post <a href="/compute-stacks/introduction-to-containerized-services/" data-type="URL" data-id="/compute-stacks/introduction-to-containerized-services/">here</a>. If you don&#8217;t already have a working Docker environment to start with, I recommend you read my post on deploying Docker which can be found <a rel="noreferrer noopener" href="/compute-stacks/deploying-docker-on-ubuntu-20-04/" data-type="URL" data-id="/compute-stacks/deploying-docker-on-ubuntu-20-04/" target="_blank">here</a>.</p>
+
+
+
+<p>There are many different container images available for various DNS recursors in the two primary repositories Docker Hub and RedHat Quay. The problem is that many are poorly implemented, not well maintained, and often lack pseudo-standard deployment features that really put that shine on the final product. Often times, even when a product vendor provides their own container images directly, they still are quite lackluster to say the least. For this reason, I will be using container images that I have built myself and are being actively maintained for my own production use.</p>
+
+
+
+<p>To get started, be sure to check out the specific image for this tutorial in my GitHub repository which can be found <a rel="noreferrer noopener" href="https://github.com/AzorianSolutions/as-docker-images-powerdns-recursor" data-type="URL" data-id="https://github.com/AzorianSolutions/as-docker-images-powerdns-recursor" target="_blank">here</a>. This tutorial will assume that you have both a functioning Docker environment as well as the docker-compose tool installed. There are a few ways you can deploy images to a Docker environment but I am going to only cover the docker-compose route as it&#8217;s most practical for ongoing maintenance and also translates very well to the <a href="https://portainer.io/" data-type="URL" data-id="https://portainer.io/" target="_blank" rel="noreferrer noopener">Portainer</a> GUI app designed for managing container environments.</p>
+
+
+
+<p>Let&#8217;s start by creating a YAML formatted file for docker-compose. I will go over some of the various settings in this file following the example so you may want to review those first and tweak the following example accordingly. From a command shell in your Docker environment. execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>echo 'version: '3.3'
+services:
+  recursor:
+    image: azoriansolutions/powerdns-recursor:latest
+    restart: unless-stopped
+    environment:
+      - PDNS_allow_from=<strong>10.0.0.0/8,123.45.67.0/23</strong>
+      - PDNS_local_port=53
+      - PDNS_local_address=0.0.0.0
+      - PDNS_any_to_tcp=yes
+      - PDNS_api_key=<strong>SECURE-API-KEY</strong>
+      - PDNS_dnssec=validate
+      - PDNS_dnssec_log_bogus=yes
+      - PDNS_loglevel=3
+      - PDNS_webserver=yes
+      - PDNS_webserver_address=0.0.0.0
+      - PDNS_webserver_allow_from=<strong>0.0.0.0/0</strong>
+      - PDNS_webserver_password=<strong>SECURE-HTTP-AUTH-PASSWORD</strong>
+    ports:
+      - "8053:53/udp"
+      - "8053:53"
+      - "8080:8082"' | tee /tmp/dc-powerdns-recursor.yaml</code></pre>
+
+
+
+<p>One of the first and <strong>most important settings</strong> to take notice of is the &#8220;PDNS_allow_from&#8221; setting. This defines one or more networks in CIDR format that the recursor will accept DNS queries from. The default value of the setting only allows access from RFC 1918 private IP addresses so you may need to update this if you will be receiving traffic from some public IP networks. You <strong>should never</strong> set this value to &#8220;0.0.0.0/0&#8221; unless you know what you&#8217;re doing. Otherwise, in many scenarios this can lead to an open resolver which can and will eventually be turned into an attack vector by bad actors. If you are implementing proper firewall filters somewhere along the communication chain, then it would be okay to change this to allow all traffic for ease of configuration maintenance.</p>
+
+
+
+<p>Another important setting is the &#8220;PDNS_api_key&#8221; which controls access to the built-in API server which can be used for issuing various commands to the recursor at runtime. This setting isn&#8217;t important if you end up disabling the built-in web-server.</p>
+
+
+
+<p>You should definitely take note to the &#8220;PDNS_dnssec&#8221; setting as this example has configured the most strict form of DNSSEC which is full blown validation. This may have adverse effects depending on how you intend to use the recursor. For more information on this setting, check out the recursor settings page <a href="https://docs.powerdns.com/recursor/settings.html#dnssec" data-type="URL" data-id="https://docs.powerdns.com/recursor/settings.html#dnssec" target="_blank" rel="noreferrer noopener">here</a>.</p>
+
+
+
+<p>Next up is the &#8220;PDNS_webserver&#8221; setting. This controls whether or not the built-in web server is enabled. This web server provides a basic page to see real-time performance statistics of the recursor. The web server is also responsible for providing the API server so you must enable it to use the API features.</p>
+
+
+
+<p>Also to go with the last setting, if you do enable the web server you may want to consider adjusting the &#8220;PDNS_webserver_allow_from&#8221; setting. This defines one or more networks in CIDR format which HTTP requests to the web server should be allowed from. If you are performing packet filtering upstream then you are okay to leave this to allow all traffic for ease of configuration maintenance.</p>
+
+
+
+<p>Lastly, take notice to the &#8220;PDNS_webserver_password&#8221; setting which configures a basic password used for HTTP authentication to the real-time statistics page provided by the web server.</p>
+
+
+
+<p>Depending on your environment and what you have deployed to the Docker server you&#8217;ll be using, you may want to consider changing the port settings:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>    ports:
+      - "8053:53/udp"
+      - "8053:53"
+      - "8080:8082"</code></pre>
+
+
+
+<p>The value &#8220;8053&#8221; defines the host port on the Docker machine to bind the internal container port of 53 to. The other value of &#8220;8080&#8221; defines the host port on the Docker machine to bind the container&#8217;s internal web server port of 8082 to. If you aren&#8217;t using any form of reverse proxy to manage ingress traffic to your containerized services and just want to have the Docker machine handle requests directly, then you may consider changing the &#8220;8053&#8221; values to the standard port of &#8220;53&#8221;.</p>
+
+
+
+<p>You need to be aware that in many environments such as Ubuntu, you can not just change to port 53 alone as the container will fail to start. This is because newer Ubuntu releases have a local resolver running by default on port 53 but it is only bound to the loopback address. Docker has a great feature to work around this challenge though. You can also add a specific IP address before the host port number to keep from binding to all available interfaces on the machine. For example, if your Docker host has a public IP address of &#8220;123.45.67.76&#8221; then you could change the port configuration to &#8220;123.45.67.76:53:53/udp&#8221; and &#8220;123.45.67.76:53:53&#8221; respectively. This will prevent conflicts with the local resolver that is running by default on Ubuntu.</p>
+
+
+
+<p>At this point, you should have tweaked the example configuration either before or after creating the YAML file so presumably you&#8217;re ready to deploy the recursor now. Execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>docker-compose -u /tmp/dc-powerdns-recursor.yaml</code></pre>
+
+
+
+<p>Once the deployment process has been completed, you should now have a working recursor ready to serve DNS requests. There are many more settings that you can change to tweak the recursor behavior. For more information, check out the recursor settings page <a href="https://docs.powerdns.com/recursor/settings.html" data-type="URL" data-id="https://docs.powerdns.com/recursor/settings.html" target="_blank" rel="noreferrer noopener">here</a>.</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/isp/network-services/deploying-a-powerdns-resolver-on-docker/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+	</channel>
+</rss>

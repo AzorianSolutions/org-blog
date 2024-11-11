@@ -1,0 +1,544 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>containerization &#8211; Azorian Solutions</title>
+	<atom:link href="/tag/containerization/feed/" rel="self" type="application/rss+xml" />
+	<link>/</link>
+	<description>Elucidation of the intricate</description>
+	<lastBuildDate>Mon, 28 Mar 2022 20:48:29 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>
+	hourly	</sy:updatePeriod>
+	<sy:updateFrequency>
+	1	</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=6.4.1</generator>
+
+<image>
+	<url>/wp-content/uploads/2022/03/cropped-ms-icon-310x310-1-150x150.png</url>
+	<title>containerization &#8211; Azorian Solutions</title>
+	<link>/</link>
+	<width>32</width>
+	<height>32</height>
+</image> 
+	<item>
+		<title>Connecting Kubernetes To Your Network Using BGP</title>
+		<link>/compute-stacks/connecting-kubernetes-to-your-network-using-bgp/</link>
+					<comments>/compute-stacks/connecting-kubernetes-to-your-network-using-bgp/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Sun, 27 Mar 2022 17:11:31 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[asn]]></category>
+		<category><![CDATA[bgp]]></category>
+		<category><![CDATA[calico]]></category>
+		<category><![CDATA[cni]]></category>
+		<category><![CDATA[containerization]]></category>
+		<category><![CDATA[containers]]></category>
+		<category><![CDATA[k8s]]></category>
+		<category><![CDATA[kubectl]]></category>
+		<category><![CDATA[kubernetes]]></category>
+		<category><![CDATA[network]]></category>
+		<category><![CDATA[networking]]></category>
+		<category><![CDATA[peering]]></category>
+		<category><![CDATA[virtualization]]></category>
+		<guid isPermaLink="false">https://azorian.solutions/?p=534</guid>
+
+					<description><![CDATA[Having a Kubernetes cluster to run your network services is incredibly valuable for many organizations. However, the default configuration of a basic cluster using the Calico CNI isn&#8217;t really very ideal for simple automated deployment of services as ingress communications require some form of proxy running in the cluster. Many examples will reference uses of [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>Having a Kubernetes cluster to run your network services is incredibly valuable for many organizations. However, the default configuration of a basic cluster using the Calico CNI isn&#8217;t really very ideal for simple automated deployment of services as ingress communications require some form of proxy running in the cluster. Many examples will reference uses of the Kube-Proxy component to provide ingress communications. This approach isn&#8217;t very ideal in my opinion as it still requires a fair amount of manual configuration to expose services in the cluster to an external network. Calico CNI uses BGP peering between nodes by default which is great for achieving the highest performance and simplicity in your cluster networking. This approach does not encapsulate any layer 3 traffic on the wire so you can easily inspect your traffic for debugging purposes.</p>
+
+
+
+<p>Enter BGP peering for Kubernetes using Calico CNI. Using this method, you can have all of your Kubernetes nodes communicate directly with an external network router via BGP in order to distribute routes to your cluster services and pods. Once this has been setup, any services you configure (properly) in your cluster will become immediately accessible to your network as routes are injected immediately upon activation.</p>
+
+
+
+<p>In order to apply the YAML formatted configuration files needed to setup BGP peering, you will need to have the Calico CNI control script installed in an environment that has proper permissions to manage the cluster. If you used the tutorial I provided in this blog for deploying Kubernetes, then this control script will have already been installed to each of your control plane nodes with the alias &#8220;kubectl-calico&#8221; and &#8220;calicoctl&#8221; so you&#8217;re already good to get started.</p>
+
+
+
+<p>If you setup your Kubernetes cluster some other way and do not currently have the Calico CNI control script installed, execute the following commands from an environment you have setup with kubectl for the cluster:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>export calico_version=$(curl --silent "https://api.github.com/repos/projectcalico/calico/releases/latest" | grep '"tag_name":' | sed -E 's/.*"(&#91;^"]+)".*/\1/')
+
+curl -A "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/81.0" -o kubectl-calico -L https://github.com/projectcalico/calico/releases/download/$calico_version/calicoctl-linux-amd64
+
+sudo chown root:root kubectl-calico
+sudo chmod +x kubectl-calico
+sudo mv kubectl-calico /usr/local/bin/
+sudo ln -s /usr/local/bin/kubectl-calico /usr/local/bin/calicoctl</code></pre>
+
+
+
+<p>At this point, you should be ready to start building the basic configuration file required to update the Calico CNI in order to establish BGP peering both with your network router and between nodes (route reflection). The example I provide in this tutorial will assume a very basic setup that assumes only one availability zone with a single top-of-rack (ToR) router. If you are building something with even better redundancy, it&#8217;s not complicated to pivot from this configuration to one that supports multiple availability zones and/or multiple ToR routers.</p>
+
+
+
+<p>Let&#8217;s start by applying some additional labels to all of your cluster nodes. These labels will be used to selectively enable route reflection via BGP. Execute the following command for each node in your cluster by updating the &#8220;HOSTNAME-HERE&#8221; string to match the hostname configured on each node. If you&#8217;re unsure of a node&#8217;s hostname, just execute the &#8220;hostname&#8221; command on that node.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl label node HOSTNAME-HERE route-reflector=true</code></pre>
+
+
+
+<p>After this has been completed, you can verify that everything looks correct by executing the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl get nodes --show-labels</code></pre>
+
+
+
+<p>Now let&#8217;s create a YAML formatted configuration file using the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>echo 'apiVersion: projectcalico.org/v3
+kind: BGPConfiguration
+metadata:
+  name: default
+spec:
+  logSeverityScreen: Info
+  nodeToNodeMeshEnabled: false
+  serviceClusterIPs:
+  - cidr: 10.10.10.0/23
+  serviceExternalIPs:
+  - cidr: 10.10.0.0/23
+  - cidr: 172.21.0.0/24
+  listenPort: 179
+---
+apiVersion: projectcalico.org/v3
+kind: BGPPeer
+metadata:
+  name: as-rtr1
+spec:
+  peerIP: 172.22.100.254
+  asNumber: 64512
+---
+apiVersion: projectcalico.org/v3
+kind: BGPPeer
+metadata:
+  name: as-node
+spec:
+  nodeSelector: all()
+  peerSelector: route-reflector == \'true\'' | tee /tmp/calico-bgp-configuration.yaml</code></pre>
+
+
+
+<p>Before you apply this configuration file to the cluster, some of the values will probably need modified to reflect appropriate settings that match your environment.</p>
+
+
+
+<p>The first item to update is the &#8220;serviceClusterIPs&#8221; entry. This should contain the CIDR that you configured for your service networks CIDR when initializing the cluster. If you followed my tutorial for deploying the Kubernetes cluster initially, all of this should have some familiarity already.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>  serviceClusterIPs:
+  - cidr: 10.10.10.0/23</code></pre>
+
+
+
+<p>The next item to update is the &#8220;serviceExternalIPs&#8221; entry. This should contain one or more CIDR entries to reflect any IP ranges that you intend to assign external service IP addresses from. For example, if you were going to deploy a DNS resolver for your network with an IP address of &#8220;10.10.0.1&#8221; then you would add a CIDR entry that includes that particular IP address such as &#8220;- cidr: 10.10.0.0/24&#8221;. IP addresses assigned to services from the ranges configured in this entry will be announced as individual /32 routes via BGP. This can be very useful if you need to cherry pick addresses in-between existing network allocations or if you need to temporarily &#8220;hijack&#8221; the traffic of another service on your network. A good example of this would be doing brief testing of new services that will replace existing deployments elsewhere on your network.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>  serviceExternalIPs:
+  - cidr: 10.10.0.0/23
+  - cidr: 172.21.0.0/24</code></pre>
+
+
+
+<p>Lastly, you may need to update the &#8220;peerIP&#8221; and &#8220;asNumber&#8221; entries to reflect the appropriate IP address and ASN of your ToR router that the cluster nodes should peer to.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>spec:
+  peerIP: 172.22.100.254
+  asNumber: 64512</code></pre>
+
+
+
+<p>Now that the configuration file is ready, it&#8217;s time to apply it to the cluster. Don&#8217;t forget that you will need to update your ToR router with the appropriate configuration to support BGP peering from each of your cluster nodes. The remote ASN used by the cluster nodes in this configuration will be the same as the ASN assigned in the previous section. To apply the configuration file to the cluster, execute the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>calicoctl apply -f /tmp/calico-bgp-configuration.yaml</code></pre>
+
+
+
+<p>At this point, if your ToR router has already been properly configured for BGP peering to your cluster nodes, you should see the peering relationships begin to establish after no more than one to two minutes typically, often quicker depending on your ToR router&#8217;s BGP configuration.</p>
+
+
+
+<p>That&#8217;s it! Wow, wasn&#8217;t that simple? Your Kubernetes cluster is now ready to begin announcing routes for any services and pods that you deploy. Once the relationships have been established, you should see some announcements to cover what is already deployed in the cluster. You will only see /32 announcements for services which have been configured with one or more external IP addresses. None of the default services deployed for a fresh cluster define this setting so don&#8217;t expect to see any out of the gate if you have not already configured something this way.</p>
+
+
+
+<p>There are some important details to note about this particular configuration (which can be alternated to work slightly differently). With this configuration, the node-to-node mesh networking is disabled which means that traffic for a given service IP will be routed only to the cluster nodes which are actively hosted an instance of the service. This is really handy if any of your services have a need to see the source IP of ingress traffic (such as for security purposes). Depending on your use case, this might not be the most ideal configuration though since additional external configuration would be required on your router to properly balance ingress traffic to each node hosting a service instance.</p>
+
+
+
+<p>When you use the node-to-node mesh networking feature, you can direct ingress traffic for your services to any mesh node in the cluster even if the service doesn&#8217;t have an instance running on a particular node. If the service isn&#8217;t running locally, the node will forward the traffic to a different node that is running the service. This approach is great if you want ingress traffic to be automatically balanced across all available nodes running a particular service. The caveat here is that when using mesh networking, your service may not always see the source IP address of the ingress traffic since the packets will be rewritten with a source IP address that reflects the cluster node that forwarded the traffic via the mesh network.</p>
+
+
+
+<p>I recommend you check out <a href="/compute-stacks/connecting-kubernetes-to-a-ceph-cluster-using-rook/" data-type="URL" data-id="/compute-stacks/connecting-kubernetes-to-a-ceph-cluster-using-rook/">this post</a> next to take your Kubernetes deployment to the next level.</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/connecting-kubernetes-to-your-network-using-bgp/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+		<item>
+		<title>Deploying Kubernetes On Ubuntu 20.04</title>
+		<link>/compute-stacks/deploying-kubernetes-on-ubuntu-20-04/</link>
+					<comments>/compute-stacks/deploying-kubernetes-on-ubuntu-20-04/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Sun, 27 Mar 2022 14:28:47 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[calico]]></category>
+		<category><![CDATA[cluster]]></category>
+		<category><![CDATA[cni]]></category>
+		<category><![CDATA[containerization]]></category>
+		<category><![CDATA[containers]]></category>
+		<category><![CDATA[docker]]></category>
+		<category><![CDATA[k8s]]></category>
+		<category><![CDATA[kubeadm]]></category>
+		<category><![CDATA[kubectl]]></category>
+		<category><![CDATA[kubelet]]></category>
+		<category><![CDATA[kubernetes]]></category>
+		<category><![CDATA[orchestration]]></category>
+		<category><![CDATA[podman]]></category>
+		<category><![CDATA[pods]]></category>
+		<category><![CDATA[vm]]></category>
+		<guid isPermaLink="false">https://azorian.solutions/?p=515</guid>
+
+					<description><![CDATA[So you&#8217;re finally ready to take your use of containers to the next level with the premium standard of container orchestration but maybe like me, you aren&#8217;t a fan of Red Hat Enterprise Linux / openSUSE environments. No worries, there are some reasonably simple steps that will get you to a working Kubernetes cluster deployment [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>So you&#8217;re finally ready to take your use of containers to the next level with the premium standard of container orchestration but maybe like me, you aren&#8217;t a fan of Red Hat Enterprise Linux / openSUSE environments. No worries, there are some reasonably simple steps that will get you to a working Kubernetes cluster deployment on Ubuntu in almost no time at all.</p>
+
+
+
+<p>To get started, you need at least one clean Ubuntu 20.04 environment, ideally at least two Ubuntu 20.04 environments to separate your control plane and worker nodes. For high availability environments, you should have at least three control plane nodes and at least two worker nodes. You don&#8217;t have to create all the additional nodes at once as adding them later isn&#8217;t much of a chore. The instructions that follow will assume you&#8217;re working with at least two nodes, one for your control plane, and one for your workload. <strong>It is very important</strong> that every node you intend to join to the same cluster has a unique hostname configured. It does not matter if two nodes are located in different network search domains, their hostname must specifically be unique to the cluster.</p>
+
+
+
+<h2 class="wp-block-heading">Planning Cluster Configuration</h2>
+
+
+
+<p>Before you start executing commands, you need to get all your ducks in a row with a few pieces of configuration information. The following is an example of the configuration used in the Azorian Solutions production Kubernetes cluster:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>             Cluster Domain: k8s.azorian.solutions
+     Control Plane Endpoint: cp.k8s.azorian.solutions
+          Pod Networks CIDR: 10.255.0.0/16
+      Service Networks CIDR: 10.10.10.0/23
+            Kubelet Version: 1.22.0-00
+            Kubeadm Version: 1.22.0-00
+            Kubectl Version: 1.22.0-00</code></pre>
+
+
+
+<p>The first configuration item is the cluster domain. Think of this much like you would a network search domain although it isn&#8217;t necessarily used in the same way.</p>
+
+
+
+<p>The next configuration item is the control plane endpoint. This is typically a domain name containing an A record corresponding to the IP address of each control plane node that will operate in the cluster. Initially, this domain should only contain a single A record that points to the IP address of the first control plane node that you intend to initialize the Kubernetes cluster on. If you miss this detail during setup, it could lean to painful results forcing you to start the entire process all over again (assuming you don&#8217;t have great proficiency in Kubernetes clusters to fix it).</p>
+
+
+
+<p>Moving on, the pod networks CIDR should be a fairly large private network allocation as this will be carved up into many smaller networks for each pod that gets deployed to the cluster. Remember, this could easily equate to one network per container deployed depending on how you deploy your services so don&#8217;t get stingy on address space. This is not something that is easily changed after the fact. The allocation chosen here should not be your easiest to remember as you likely won&#8217;t spend much if any time directly interacting with the IP addresses that are assigned from these networks. It&#8217;s also important to remember that the addresses automatically assigned from this network are ephemeral in nature in accordance with the destruction and recreation of pods that happen automatically from time to time.</p>
+
+
+
+<p>Next up is the service networks CIDR. Until you get familiar with exactly how Kubernetes works, I recommend starting with a /23 private network as this will ensure you don&#8217;t likely end up in a situation where you run out of space from deploying services to the cluster. Services in Kubernetes are like a public facing gateway to your various pods (which contain one or more containers). You can think of a service similar to how you would think of a load balancer. It will receive communication requests to specific IP addresses and ports which are then automatically routed to any pods that have been linked to the service.</p>
+
+
+
+<p>Finally, you have your Kubelet, Kubeadm, and Kubectl versions. You can select any of the available Kubernetes release versions here. It is considered best practice for compatibility reasons to keep all three of these packages in sync with at least major and minor versions. If you know what you&#8217;re doing, you can install different versions of each but you may experience problems by doing so if there is a breaking change between two selected versions. Version 1.23 hasn&#8217;t been out long and I haven&#8217;t tested it so for this tutorial, we&#8217;ll stick with version 1.22.0-00 which is what I am running today.</p>
+
+
+
+<h2 class="wp-block-heading">Preparing The Nodes</h2>
+
+
+
+<p>Let&#8217;s start by running a number of commands to get each node of the Kubernetes cluster prepared for deployment. Begin by opening up a command shell to each of the nodes with a non-root user that has super user (sudo) privileges.</p>
+
+
+
+<p>First, you need to disable the use of swap partitions. Execute the following commands on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo sed -i 's/^\/swap/#\/swap/g' /etc/fstab
+sudo swapoff -a</code></pre>
+
+
+
+<p>Next, you need to update the OS to the latest packages for the current distribution. Execute the following commands on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo apt update
+sudo apt upgrade -y</code></pre>
+
+
+
+<p>Now it&#8217;s time to install some basic dependencies to support the remainder of the installation process. Execute the following command on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo apt install -y apt-transport-https ca-certificates curl gnupg lsb-release net-tools containerd</code></pre>
+
+
+
+<p>Now you need to load the &#8220;overlay&#8221; and &#8220;br_netfilter&#8221; Linux kernel modules. Execute the following commands on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo modprobe overlay
+sudo modprobe br_netfilter</code></pre>
+
+
+
+<p>The previous commands only load kernel modules temporarily. You need to add a configuration file to ensure that these modules are loaded after each machine reboot. Execute the following command on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>echo 'overlay
+br_netfilter' | sudo tee /etc/modules-load.d/k8s.conf &gt; /dev/null</code></pre>
+
+
+
+<p>Now you need to add a kernel configuration file to tweak three networking settings. Execute the following command on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>echo 'net.ipv4.ip_forward = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-ip6tables = 1' | sudo tee /etc/sysctl.d/99-k8s.conf &gt; /dev/null</code></pre>
+
+
+
+<p>The first of the three aforementioned settings instruct the kernel to accept and forward IP packets not intended for the host machine, but instead one or more of the guests running on the host. The second and third settings control whether or not packets passing through a Linux networking bridge are passed to iptables for processing.</p>
+
+
+
+<p>Now you need to instruct the kernel to load the new kernel configuration file to apply the changes. Execute the following command on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo sysctl --system</code></pre>
+
+
+
+<p>Now you need to install the GPG key for the Google APT repository that contains the Kubernetes packages you&#8217;ll need. Execute the following command on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg</code></pre>
+
+
+
+<p>Now you need to add a configuration file for the APT package manager to make the system aware of the Kubernetes package repository hosted by Google. Execute the following command on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>echo 'deb &#91;signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main' | sudo tee /etc/apt/sources.list.d/kubernetes.list &gt; /dev/null</code></pre>
+
+
+
+<p>Now you need to update APT&#8217;s package cache to download the latest package information from the Kubernetes repository. Execute the following command on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo apt update</code></pre>
+
+
+
+<p>Now you need to set some temporary environment variables that will be used during the Kubernetes package installation process. Execute the following commands on each node, taking care to update each variable with the appropriate versions that you chose for Kubelet, Kubeadm, and Kubectl at the beginning of this tutorial:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubelet_version=1.22.0-00
+kubeadm_version=1.22.0-00
+kubectl_version=1.22.0-00</code></pre>
+
+
+
+<p>Now you are finally ready to install the Kubernetes packages. Execute the following commands on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>KUBELET_EXTRA_ARGS='--feature-gates="AllAlpha=false,RunAsGroup=true"
+  --container-runtime=remote --cgroup-driver=systemd
+  --runtime-request-timeout=5m
+  --container-runtime-endpoint="unix:///var/run/containerd/containerd.sock"'
+
+sudo apt install -y --allow-change-held-packages \
+  kubelet=$kubelet_version kubeadm=$kubeadm_version \
+  kubectl=$kubectl_version kubernetes-cni</code></pre>
+
+
+
+<p>Now there is one final dependency to install which is the control script for the Calico CNI since this tutorial will be making use of Calico as the container networking interface (CNI). Execute the following commands on each node:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>export calico_version=$(curl --silent "https://api.github.com/repos/projectcalico/calico/releases/latest" | grep '"tag_name":' | sed -E 's/.*"(&#91;^"]+)".*/\1/')
+
+curl -A "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/81.0" -o kubectl-calico -L https://github.com/projectcalico/calico/releases/download/$calico_version/calicoctl-linux-amd64
+
+sudo chown root:root kubectl-calico
+sudo chmod +x kubectl-calico
+sudo mv kubectl-calico /usr/local/bin/
+sudo ln -s /usr/local/bin/kubectl-calico /usr/local/bin/calicoctl</code></pre>
+
+
+
+<p>Alright, that completes the node preparation phase of the deployment! I promise the next phase will be much quicker.</p>
+
+
+
+<h2 class="wp-block-heading">Initializing The Cluster</h2>
+
+
+
+<p>It&#8217;s finally time to initialize the Kubernetes cluster now that you have all of the nodes in a prepared state. If you are running the nodes in virtualization environment like Proxmox or ESXI, you may want to consider doing a quick snapshot of each node just in case something doesn&#8217;t go right with the initialization process. This will give you a relatively simple way to revert the coming changes and try again without having to completely rebuild the cluster nodes all over again.</p>
+
+
+
+<p>Let&#8217;s start by setting some additional temporary environment variables to assist with building a cluster configuration file. Execute the following commands <strong>on the first control plane node only!</strong> Take care to update each  variable to the corresponding configuration value chosen at the beginning of this tutorial.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>cluster_domain=k8s.azorian.solutions
+control_plane_endpoint=cp.k8s.azorian.solutions
+pod_networks_cidr=10.255.0.0/16
+service_networks_cidr=10.10.10.0/23</code></pre>
+
+
+
+<p>Now you need to create a cluster initialization file in YAML format. Execute the following command <strong>on the first control plane node only!</strong></p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>echo 'kind: InitConfiguration
+apiVersion: kubeadm.k8s.io/v1beta2
+nodeRegistration:
+  criSocket: /var/run/containerd/containerd.sock
+---
+kind: ClusterConfiguration
+apiVersion: kubeadm.k8s.io/v1beta2
+controlPlaneEndpoint: '"$control_plane_endpoint"':6443
+networking:
+  dnsDomain: '"$cluster_domain"'
+  podSubnet: '"$pod_networks_cidr"'
+  serviceSubnet: '"$service_networks_cidr"'
+---
+kind: KubeletConfiguration
+apiVersion: kubelet.config.k8s.io/v1beta1
+cgroupDriver: systemd
+---
+kind: KubeProxyConfiguration
+apiVersion: kubeproxy.config.k8s.io/v1alpha1' | tee /tmp/kubeadm-config.yaml</code></pre>
+
+
+
+<p>Now you can finally initialize the first node of the cluster! Execute the following command <strong>on the first control plane node only!</strong></p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>sudo kubeadm init --config /tmp/kubeadm-config.yaml --upload-certs</code></pre>
+
+
+
+<p>If all goes well with the cluster initialization, then the aforementioned command should produce some output that provides two different commands beginning with &#8220;kubeadm join&#8221; that you need to capture for use a little later in this tutorial.</p>
+
+
+
+<p>Now you need to copy the admin security configuration file of the cluster to the appropriate location in the current user&#8217;s home directory so that you can execute various cluster administration commands as the current user without the user of super user (sudo) privileges. Execute the following command <strong>on the first control plane node only!</strong></p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config</code></pre>
+
+
+
+<p>You now have a bare bones Kubernetes cluster! You aren&#8217;t done quiet yet though as this cluster doesn&#8217;t have any container networking interface. Read on.</p>
+
+
+
+<h2 class="wp-block-heading">Installing Calico CNI</h2>
+
+
+
+<p>This step should prove to be the easiest. Execute the following command <strong>on the first control plane node only!</strong></p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>curl https://docs.projectcalico.org/manifests/calico.yaml | kubectl apply -f -</code></pre>
+
+
+
+<p>Alright, now the cluster has a container network interface installed and is ready for use if you are only working with a single node. Otherwise, read on.</p>
+
+
+
+<h2 class="wp-block-heading">Initializing The Remaining Nodes</h2>
+
+
+
+<p>If you are setting up more than one node for your Kubernetes environment, then you need to execute the &#8220;kubeadm join&#8221; commands that you captured during cluster initialization in an earlier step. For each of the worker nodes you are going to join to the cluster, execute the shorter of the two commands (the one that <strong>does not contain</strong> the &#8211;control-plane parameter) on the node.</p>
+
+
+
+<p>If you are setting up more than one control plane nodes for your Kubernetes environment, then you need to execute the longer of the two commands (the one that <strong>does contain</strong> the &#8211;control-plane parameter) on each <strong>remaining</strong> control plane nodes. Additionally, for ease of operation, also execute the following commands on each of the <strong>additional</strong> control plane nodes:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config</code></pre>
+
+
+
+<p>There is one final step to ensure that the Kubernetes cluster is ready to start deploying components. Each node that will be handling workloads needs to have a Kubernetes worker role label attached. Run the following command from a control plane node <strong>for each worker node in the cluster</strong> taking care to substitute the &#8220;HOSTNAME-HERE&#8221; string with the node&#8217;s configured hostname. If you aren&#8217;t sure of the node&#8217;s hostname, you can determine this by executing the &#8220;hostname&#8221; command on the node in question.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl label node HOSTNAME-HERE node-role.kubernetes.io/worker=worker</code></pre>
+
+
+
+<p>That&#8217;s it! You now have an operational Kubernetes cluster environment. I don&#8217;t want to toot your horn, but you&#8217;re kind of a big deal now.</p>
+
+
+
+<p>I recommend you check out <a href="/compute-stacks/connecting-kubernetes-to-your-network-using-bgp/" data-type="URL" data-id="/compute-stacks/connecting-kubernetes-to-your-network-using-bgp/">this post</a> next to take your Kubernetes deployment to the next level.</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/deploying-kubernetes-on-ubuntu-20-04/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+	</channel>
+</rss>

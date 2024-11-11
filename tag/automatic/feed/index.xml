@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>automatic &#8211; Azorian Solutions</title>
+	<atom:link href="/tag/automatic/feed/" rel="self" type="application/rss+xml" />
+	<link>/</link>
+	<description>Elucidation of the intricate</description>
+	<lastBuildDate>Mon, 28 Mar 2022 20:50:07 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>
+	hourly	</sy:updatePeriod>
+	<sy:updateFrequency>
+	1	</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=6.4.1</generator>
+
+<image>
+	<url>/wp-content/uploads/2022/03/cropped-ms-icon-310x310-1-150x150.png</url>
+	<title>automatic &#8211; Azorian Solutions</title>
+	<link>/</link>
+	<width>32</width>
+	<height>32</height>
+</image> 
+	<item>
+		<title>Automatic Virtual Host Setup Using Nginx Ingress Controller On Kubernetes</title>
+		<link>/compute-stacks/automatic-virtual-host-setup-using-nginx-ingress-controller-on-kubernetes/</link>
+					<comments>/compute-stacks/automatic-virtual-host-setup-using-nginx-ingress-controller-on-kubernetes/#respond</comments>
+		
+		<dc:creator><![CDATA[Matt]]></dc:creator>
+		<pubDate>Mon, 28 Mar 2022 19:12:21 +0000</pubDate>
+				<category><![CDATA[Compute Stacks]]></category>
+		<category><![CDATA[automatic]]></category>
+		<category><![CDATA[controller]]></category>
+		<category><![CDATA[ingress]]></category>
+		<category><![CDATA[k8s]]></category>
+		<category><![CDATA[kubernetes]]></category>
+		<category><![CDATA[nginx]]></category>
+		<category><![CDATA[virtual hosts]]></category>
+		<guid isPermaLink="false">https://azorian.solutions/?p=571</guid>
+
+					<description><![CDATA[A common scenario that you may face in your compute environment is the need to deploy various web applications, websites, APIs, and other such services that you will likely want to associate domain names to instead of just using IP addresses for everything. There are a plethora of different ways to achieve these types of [&#8230;]]]></description>
+										<content:encoded><![CDATA[
+<p>A common scenario that you may face in your compute environment is the need to deploy various web applications, websites, APIs, and other such services that you will likely want to associate domain names to instead of just using IP addresses for everything. There are a plethora of different ways to achieve these types of deployments in Kubernetes, but for the sake of simplicity and automation, I will present one route that takes a lot of the complexity out of achieving these goals.</p>
+
+
+
+<p>Enter the Nginx Ingress Controller for Kubernetes. This is not to be confused for the Kubernetes Ingress Controller that also uses Nginx. The outcomes provided by the two are very similar but project goals different. For this tutorial and many others on this blog, I will focus on the former of the two as that is what I run in my production environments. It is also worth mentioning that this option paves the road for a very useful integration that solves another need that is just as common as the need for simple virtual hosts. That integration would be automatic SSL certificate registration and deployment using ACME providers like LetsEncrypt. I have also provided a tutorial on this blog to cover the implementation of that solution as well.</p>
+
+
+
+<p>This tutorial is pretty simple so let&#8217;s jump right into it. Working from a kubectl enabled environment for your Kubernetes cluster, execute the following commands:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>git clone -b v2.1.1 https://github.com/nginxinc/kubernetes-ingress/
+cd kubernetes-ingress/deployments</code></pre>
+
+
+
+<p>The first change you should make is to apply the role based access control (RBAC) configurations to the Kubernetes environment by executing the following command:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl apply -f common/ns-and-sa.yaml -f rbac/rbac.yaml</code></pre>
+
+
+
+<p>Now you can setup all of the definitions and dependencies required to run the Nginx Ingress Controller by executing the following commands:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl apply -f common/default-server-secret.yaml
+kubectl apply -f common/nginx-config.yaml
+kubectl apply -f common/ingress-class.yaml
+kubectl apply -f common/crds/k8s.nginx.org_virtualservers.yaml
+kubectl apply -f common/crds/k8s.nginx.org_virtualserverroutes.yaml
+kubectl apply -f common/crds/k8s.nginx.org_transportservers.yaml
+kubectl apply -f common/crds/k8s.nginx.org_policies.yaml
+kubectl apply -f common/crds/k8s.nginx.org_globalconfigurations.yaml</code></pre>
+
+
+
+<p>Now you&#8217;re ready to deploy the actual ingress controller. There are two general approaches for deployment which are DaemonSets and Deployments. In this tutorial, the latter will be used as it is likely most sufficient for your environment. Execute the following command:L</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl apply -f deployment/nginx-ingress.yaml</code></pre>
+
+
+
+<p>Now for the final step which is to expose access to the ingress controller via a Kubernetes service. Let&#8217;s take a look at the default service configuration which can be found in the service/loadbalancer.yaml file:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ingress
+  namespace: nginx-ingress
+spec:
+  externalTrafficPolicy: Local
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+  selector:
+    app: nginx-ingress</code></pre>
+
+
+
+<p>This file will work as is to get you started but I will assume you probably want to expose some of the services connected to the ingress controller via a public IP address in your network. If you do not need to expose the ingress controller via a public IP address then you may skip the next section and jump to the last part of this step.</p>
+
+
+
+<p>This approach assumes that you have connected your Kubernetes environment into your network via BGP with Calico CNI. Take a look at the modified service/loadbalancer.yaml file below to see how easy it is to add one or more additional IP addresses to the controller which will be automatically announced as a /32 route via BGP. Keep in mind, the IP addresses used here must be defined in your Calico CNI BGP configuration under the &#8220;serviceExternalIPs&#8221; section or the address assignments <strong>will not be announced</strong> via BGP.</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ingress
+  namespace: nginx-ingress
+spec:
+  externalTrafficPolicy: Local
+  type: LoadBalancer
+<strong>  externalIPs:
+  - 123.45.54.321</strong>
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+  selector:
+    app: nginx-ingress</code></pre>
+
+
+
+<p>Once you have the service/loadbalancer.yaml file modified to your requirements, execute the following command to create the service:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>kubectl apply -f service/loadbalancer.yaml</code></pre>
+
+
+
+<p>Now that this has been setup, you can easily connect the Kubernetes services you deploy to the ingress controller by defining a configuration object in your application namespace similar to the following:</p>
+
+
+
+<pre class="wp-block-code has-small-font-size"><code>apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: http-lb
+  namespace: website-namespace
+spec:
+  rules:
+  - host: your.website.domain
+    http:
+      paths:
+      - pathType: Prefix
+        path: /
+        backend:
+          service:
+            name: http-svc
+            port:
+              number: 80</code></pre>
+
+
+
+<p>That&#8217;s it! Hopefully that was as simple as I made it out to be!</p>
+
+
+
+<p>I recommend you check out <a href="/compute-stacks/automatic-letsencrypt-ssl-registration-for-kubernetes-using-cert-manager/" data-type="URL" data-id="/compute-stacks/automatic-letsencrypt-ssl-registration-for-kubernetes-using-cert-manager/">this post</a> next to take your Kubernetes deployment to the next level.</p>
+]]></content:encoded>
+					
+					<wfw:commentRss>/compute-stacks/automatic-virtual-host-setup-using-nginx-ingress-controller-on-kubernetes/feed/</wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+			</item>
+	</channel>
+</rss>
